@@ -3,9 +3,7 @@ package com.mexator.camya.ui
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.text.TextUtils
 import android.util.Log
-import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.mexator.camya.databinding.ActivityMainBinding
@@ -13,11 +11,13 @@ import com.mexator.camya.extensions.getTag
 import com.mexator.camya.mvvm.main.MainActivityViewModel
 import com.mexator.camya.mvvm.main.MainActivityViewState
 import io.reactivex.android.schedulers.AndroidSchedulers
-import java.util.regex.Pattern
+import io.reactivex.disposables.Disposable
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var viewModel: MainActivityViewModel
+
+    private lateinit var viewModelSubscription: Disposable
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,15 +36,21 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(binding.root)
 
-        viewModel.viewState
+        viewModelSubscription = viewModel.viewState
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::applyState)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        viewModelSubscription.dispose()
     }
 
     private fun applyState(state: MainActivityViewState) {
         binding.textViewUsername.text = state.user?.username
         binding.textViewName.text = state.user?.name
-        Log.d(getTag(),state.toString())
+        binding.flipper.displayedChild = if (state.authenticated) 0 else 1
+        Log.d(getTag(), state.toString())
     }
 
     private fun onLogin(data: Uri) {

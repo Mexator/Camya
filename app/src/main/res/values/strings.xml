@@ -3,4 +3,7 @@
 
     <string name="title_login">Войти в аккаут Яндекса</string>
     <string name="title_logged_as">Вы вошли как</string>
+    <string name="not_logged">Войдите с помощью аккаунта Яндекса, чтобы продолжить</string>
+
+    <string name="title_button_login">Войти</string>
 </resources>

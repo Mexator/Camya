@@ -1,4 +1,4 @@
-package com.mexator.camya
+package com.mexator.camya.ui
 
 import android.content.Intent
 import android.net.Uri
@@ -8,6 +8,8 @@ import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import com.mexator.camya.BuildConfig
+import com.mexator.camya.R
 import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {

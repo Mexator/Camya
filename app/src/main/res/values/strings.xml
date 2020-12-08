@@ -1,3 +1,6 @@
 <resources>
     <string name="app_name">Camya</string>
+
+    <string name="title_login">Войти в аккаут Яндекса</string>
+    <string name="title_logged_as">Вы вошли как</string>
 </resources>

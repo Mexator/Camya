@@ -5,49 +5,50 @@ import android.net.Uri
 import android.os.Bundle
 import android.text.TextUtils
 import android.util.Log
-import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import com.mexator.camya.BuildConfig
-import com.mexator.camya.R
+import androidx.lifecycle.ViewModelProvider
+import com.mexator.camya.databinding.ActivityMainBinding
+import com.mexator.camya.extensions.getTag
+import com.mexator.camya.mvvm.main.MainActivityViewModel
+import com.mexator.camya.mvvm.main.MainActivityViewState
+import io.reactivex.android.schedulers.AndroidSchedulers
 import java.util.regex.Pattern
 
 class MainActivity : AppCompatActivity() {
-    val AUTH_URL =
-        "https://oauth.yandex.ru/authorize?response_type=token&client_id=" + BuildConfig.ID
+    private lateinit var binding: ActivityMainBinding
+    private lateinit var viewModel: MainActivityViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-        val button = findViewById<Button>(R.id.button)
+
+        binding = ActivityMainBinding.inflate(layoutInflater)
+        viewModel = ViewModelProvider(this).get(MainActivityViewModel::class.java)
+
+        val button = binding.button
         button.setOnClickListener {
-            startActivity(
-                Intent(
-                    Intent.ACTION_VIEW,
-                    Uri.parse(AUTH_URL)
-                )
-            )
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.getAuthURL())))
         }
-        if (intent != null && intent.data != null) {
-            onLogin()
+
+        intent?.data?.let {
+            onLogin(it)
         }
+
+        setContentView(binding.root)
+
+        viewModel.viewState
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe(this::applyState)
     }
 
-    private fun onLogin() {
-        val data = intent.data
+    private fun applyState(state: MainActivityViewState) {
+        binding.textViewUsername.text = state.user?.username
+        binding.textViewName.text = state.user?.name
+        Log.d(getTag(),state.toString())
+    }
+
+    private fun onLogin(data: Uri) {
         intent = null
-        val pattern = Pattern.compile("access_token=(.*?)(&|$)")
-        val matcher = pattern.matcher(data.toString())
-        if (matcher.find()) {
-            val token = matcher.group(1)
-            if (!TextUtils.isEmpty(token)) {
-                Log.d("TAG", "onLogin: token: $token")
-                Toast.makeText(this, "Access token: $token",Toast.LENGTH_LONG).show()
-            } else {
-                Log.w("TAG", "onRegistrationSuccess: empty token")
-            }
-        } else {
-            Log.w("TAG", "onRegistrationSuccess: token not found in return url")
-        }
+        viewModel.processUri(data.toString())
     }
 }

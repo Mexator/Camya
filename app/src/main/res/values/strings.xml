@@ -1,9 +1,13 @@
 <resources>
+<!--Globals-->
     <string name="app_name">Camya</string>
 
+<!--Main Activity-->
     <string name="title_login">Войти в аккаут Яндекса</string>
     <string name="title_logged_as">Вы вошли как</string>
     <string name="not_logged">Войдите с помощью аккаунта Яндекса, чтобы продолжить</string>
-
+    <!--Buttons-->
     <string name="title_button_login">Войти</string>
+    <string name="title_button_proceed">Продолжить</string>
+    
 </resources>

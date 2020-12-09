@@ -13,6 +13,10 @@ import com.mexator.camya.mvvm.main.MainActivityViewState
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 
+/**
+ * Main activity of an application. It can be opened at application startup and as a result of a
+ * Yandex OAuth login.
+ */
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var viewModel: MainActivityViewModel
@@ -25,20 +29,25 @@ class MainActivity : AppCompatActivity() {
         binding = ActivityMainBinding.inflate(layoutInflater)
         viewModel = ViewModelProvider(this).get(MainActivityViewModel::class.java)
 
-        val button = binding.button
-        button.setOnClickListener {
-            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.getAuthURL())))
-        }
+        setOnClickListeners()
 
+        // If this activity opened as a result of intent with token, data will be not empty
         intent?.data?.let {
             onLogin(it)
         }
 
-        setContentView(binding.root)
-
+        // Subscribe to viewModel
         viewModelSubscription = viewModel.viewState
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::applyState)
+
+        setContentView(binding.root)
+    }
+
+    private fun setOnClickListeners() {
+        binding.loginButton.setOnClickListener {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.getAuthURL())))
+        }
     }
 
     override fun onDestroy() {
@@ -46,11 +55,22 @@ class MainActivity : AppCompatActivity() {
         viewModelSubscription.dispose()
     }
 
+    private val CHILD_LOGGED = 0
+    private val CHILD_NOT_LOGGED = 1
     private fun applyState(state: MainActivityViewState) {
-        binding.textViewUsername.text = state.user?.username
-        binding.textViewName.text = state.user?.name
-        binding.flipper.displayedChild = if (state.authenticated) 0 else 1
         Log.d(getTag(), state.toString())
+        with(binding) {
+            textViewUsername.text = state.user?.username
+            textViewName.text = state.user?.name
+
+            if (state.authenticated) {
+                flipper.displayedChild = CHILD_LOGGED
+                proceedButton.isEnabled = true
+            } else {
+                flipper.displayedChild = CHILD_NOT_LOGGED
+                proceedButton.isEnabled = false
+            }
+        }
     }
 
     private fun onLogin(data: Uri) {

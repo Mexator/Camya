@@ -12,4 +12,8 @@
 <!--ChooseFolderActivity-->
     <string name="title_choose_folder">Выберите папку, куда сохранять данные</string>
     <string name="title_button_choose">Выбрать</string>
+
+<!--List State-->
+    <string name="state_loading">Загрузка…</string>
+    <string name="state_error">Ошибка:\n</string>
 </resources>

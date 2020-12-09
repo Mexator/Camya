@@ -48,6 +48,10 @@ class MainActivity : AppCompatActivity() {
         binding.loginButton.setOnClickListener {
             startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(viewModel.getAuthURL())))
         }
+        binding.proceedButton.setOnClickListener {
+            val intent = Intent(this, ChooseFolderActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     override fun onDestroy() {

@@ -1,10 +1,8 @@
 package com.mexator.camya.mvvm.main
 
-import android.text.TextUtils
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.mexator.camya.data.ActualRepository
-import com.mexator.camya.data.model.User
 import com.mexator.camya.extensions.getTag
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable

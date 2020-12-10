@@ -7,7 +7,9 @@ import com.yandex.disk.rest.Credentials
 import com.yandex.disk.rest.ResourcesArgs
 import com.yandex.disk.rest.RestClient
 import com.yandex.disk.rest.json.Resource
+import io.reactivex.Completable
 import io.reactivex.Single
+import io.reactivex.schedulers.Schedulers
 
 object ActualRepository {
     // Dependencies
@@ -42,4 +44,10 @@ object ActualRepository {
         }
             .map { resource -> resource.resourceList.items }
             .map { list -> list.filter { item -> item.isDir } }
+
+    fun createFolder(path: String) {
+        Completable.fromRunnable { diskClient!!.makeFolder(path) }
+            .subscribeOn(Schedulers.io())
+            .subscribe()
+    }
 }

@@ -1,7 +1,9 @@
 package com.mexator.camya.mvvm.choose_folder
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.mexator.camya.data.ActualRepository
+import com.mexator.camya.extensions.getTag
 import com.yandex.disk.rest.json.Resource
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -46,5 +48,10 @@ class ChooseFolderViewModel : ViewModel() {
                 )
             }
         compositeDisposable.add(job)
+    }
+
+    fun folderChosen(path: String) {
+        Log.d(getTag(),"Chosen: $path")
+        repository.createFolder("$path/folder")
     }
 }

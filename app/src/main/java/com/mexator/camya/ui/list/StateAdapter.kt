@@ -18,7 +18,13 @@ class ErrorHolder(itemView: View) : StateHolder(itemView) {
     val binding: ItemErrorBinding = ItemErrorBinding.bind(itemView)
 }
 
-class StateAdapterUtil {
+/**
+ * [StateAdapter] is an adapter class that can show loading and errors in [RecyclerView].
+ * It is made as a wrapper around [ConcatAdapter] with [LoadingAdapter] and [ErrorAdapter]
+ * inside it.
+ * @property state when changed, adapter shows another state. If null, all cells are hidden
+ */
+class StateAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
     abstract class State
     object Loading : State()
     class Error(val errorContent: String) : State()
@@ -33,13 +39,27 @@ class StateAdapterUtil {
                     loadingAdapter.shown = false
                 }
             }
+            notifyDataSetChanged()
             field = value
         }
 
     private var errorAdapter = ErrorAdapter()
     private var loadingAdapter = LoadingAdapter()
     private val adapter = ConcatAdapter(loadingAdapter, errorAdapter)
-    fun getAdapter() = adapter
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+        adapter.onCreateViewHolder(parent, viewType)
+
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) =
+        adapter.onBindViewHolder(holder, position)
+
+    override fun getItemCount(): Int =
+        adapter.itemCount
+
+    override fun getItemViewType(position: Int): Int {
+        return adapter.getItemViewType(position)
+    }
 }
 
 class LoadingAdapter : RecyclerView.Adapter<LoadingHolder>() {
@@ -69,6 +89,6 @@ class ErrorAdapter : RecyclerView.Adapter<ErrorHolder>() {
     }
 
     override fun getItemCount(): Int {
-        return if (errorContent == null) 1 else 0
+        return if (errorContent == null) 0 else 1
     }
 }

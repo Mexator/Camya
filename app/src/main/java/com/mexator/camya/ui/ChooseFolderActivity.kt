@@ -1,5 +1,6 @@
 package com.mexator.camya.ui
 
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -36,6 +37,8 @@ class ChooseFolderActivity : AppCompatActivity() {
             adapter.chosenPosition?.let {
                 val path = adapter.currentList[it]
                 viewModel.folderChosen(state.currentPath + path)
+                val intent = Intent(this, CameraActivity::class.java)
+                startActivity(intent)
             } ?: run {
                 Toast.makeText(baseContext, R.string.title_choose_folder, Toast.LENGTH_LONG).show()
             }

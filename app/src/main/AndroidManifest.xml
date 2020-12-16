@@ -3,6 +3,8 @@
     package="com.mexator.camya">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature android:name="android.hardware.camera.any" />
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:allowBackup="true"
@@ -11,13 +13,10 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.Camya">
-        <activity android:name=".ui.MainActivity"
+        <activity
+            android:name=".ui.MainActivity"
             android:label="@string/app_name">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
 
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
@@ -27,8 +26,17 @@
                 <data android:scheme="camya" />
             </intent-filter>
         </activity>
-        <activity android:name=".ui.ChooseFolderActivity"
-            android:label="@string/title_choose_folder"/>
+        <activity
+            android:name=".ui.ChooseFolderActivity"
+            android:label="@string/title_choose_folder" />
+        <activity android:name=".ui.CameraActivity"
+            android:label="CameraActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

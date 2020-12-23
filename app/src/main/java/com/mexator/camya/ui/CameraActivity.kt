@@ -1,34 +1,29 @@
 package com.mexator.camya.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
-import android.net.Uri
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.ImageCapture
-import androidx.camera.core.ImageCaptureException
-import androidx.camera.core.Preview
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ActivityCameraBinding
-import kotlinx.android.synthetic.main.activity_camera.*
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
-import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import io.reactivex.Observable
 
-// https://codelabs.developers.google.com/codelabs/camerax-getting-started
-class CameraActivity: AppCompatActivity() {
-    private var imageCapture: ImageCapture? = null
-    private lateinit var outputDirectory: File
-    private lateinit var cameraExecutor: ExecutorService
+class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
+    private lateinit var cameraManager: CameraManager
+
+    companion object {
+        private const val TAG = "CameraActivity"
+        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -38,119 +33,102 @@ class CameraActivity: AppCompatActivity() {
         if (allPermissionsGranted()) {
             startCamera()
         } else {
-            ActivityCompat.requestPermissions(
-                this, REQUIRED_PERMISSIONS, REQUEST_CODE_PERMISSIONS)
+            // Request permissions with new API
+            val launcher = registerForActivityResult(
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) {
+                if (allPermissionsGranted()) {
+                    startCamera()
+                } else {
+                    Toast
+                        .makeText(
+                            baseContext,
+                            R.string.error_permissions_not_granted,
+                            Toast.LENGTH_SHORT
+                        )
+                        .show()
+                    finish()
+                }
+            }
+            launcher.launch(REQUIRED_PERMISSIONS)
         }
-
-        binding.cameraCaptureButton.setOnClickListener { takePhoto() }
-
-        outputDirectory = getOutputDirectory()
-
-        cameraExecutor = Executors.newSingleThreadExecutor()
     }
 
     private fun takePhoto() {
 
-        // Get a stable reference of the modifiable image capture use case
-        val imageCapture = imageCapture ?: return
+    }
 
-        // Create time-stamped output file to hold the image
-        val photoFile = File(
-            outputDirectory,
-            SimpleDateFormat(FILENAME_FORMAT, Locale.US
-            ).format(System.currentTimeMillis()) + ".jpg")
 
-        // Create output options object which contains file + metadata
-        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-
-        // Set up image capture listener, which is triggered after photo has
-        // been taken
-        imageCapture.takePicture(
-            outputOptions, ContextCompat.getMainExecutor(this), object : ImageCapture.OnImageSavedCallback {
-                override fun onError(exc: ImageCaptureException) {
-                    Log.e(TAG, "Photo capture failed: ${exc.message}", exc)
-                }
-
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val savedUri = Uri.fromFile(photoFile)
-                    val msg = "Photo capture succeeded: $savedUri"
-                    Toast.makeText(baseContext, msg, Toast.LENGTH_SHORT).show()
-                    Log.d(TAG, msg)
-                }
-            })
+    enum class DeviceStateEvents {
+        ON_OPENED, ON_CLOSED, ON_DISCONNECTED
     }
 
     private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-
-        cameraProviderFuture.addListener(Runnable {
-            // Used to bind the lifecycle of cameras to the lifecycle owner
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-
-            // Preview
-            val preview = Preview.Builder()
-                .build()
-                .also {
-                    it.setSurfaceProvider(viewFinder.createSurfaceProvider())
-                }
-
-            imageCapture = ImageCapture.Builder()
-                .build()
-
-            // Select back camera as a default
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
-            try {
-                // Unbind use cases before rebinding
-                cameraProvider.unbindAll()
-
-                // Bind use cases to camera
-                cameraProvider.bindToLifecycle(
-                    this, cameraSelector, preview, imageCapture)
-
-            } catch(exc: Exception) {
-                Log.e(TAG, "Use case binding failed", exc)
+        openCamera()
+            .subscribe {
+                Log.d(TAG, "startCamera: $it")
             }
+    }
 
-        }, ContextCompat.getMainExecutor(this))
+    private fun openCamera(): Observable<Pair<DeviceStateEvents, CameraDevice>> {
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
+        val cameraID = chooseCamera()
+
+        return Observable.create { emitter ->
+            try {
+                cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
+                    override fun onOpened(camera: CameraDevice) {
+                        emitter.onNext(Pair(DeviceStateEvents.ON_OPENED, camera))
+                    }
+
+                    override fun onDisconnected(camera: CameraDevice) {
+                        emitter.onNext(Pair(DeviceStateEvents.ON_DISCONNECTED, camera))
+                    }
+
+                    override fun onError(camera: CameraDevice, error: Int) {
+                        emitter.onError(
+                            when (error) {
+                                ERROR_CAMERA_IN_USE -> Throwable("ERROR_CAMERA_IN_USE")
+                                ERROR_MAX_CAMERAS_IN_USE -> Throwable("ERROR_MAX_CAMERAS_IN_USE")
+                                ERROR_CAMERA_DISABLED -> Throwable("ERROR_CAMERA_DISABLED")
+                                ERROR_CAMERA_DEVICE -> Throwable("ERROR_CAMERA_DEVICE")
+                                ERROR_CAMERA_SERVICE -> Throwable("ERROR_CAMERA_SERVICE")
+                                else -> Throwable("Some other error, code $error")
+                            }
+                        )
+                    }
+
+                    override fun onClosed(camera: CameraDevice) {
+                        emitter.onNext(Pair(DeviceStateEvents.ON_CLOSED, camera))
+                        emitter.onComplete()
+                    }
+
+                }, null)
+            } catch (ex: SecurityException) {
+                emitter.onError(ex)
+            }
+        }
+
+    }
+
+    private fun chooseCamera(): String {
+        val cameras = cameraManager.cameraIdList
+        for (camera in cameras) {
+            val chars = cameraManager.getCameraCharacteristics(camera)
+            chars.get(CameraCharacteristics.LENS_FACING).let { facing ->
+                if (facing == CameraCharacteristics.LENS_FACING_BACK
+                    || facing == CameraCharacteristics.LENS_FACING_EXTERNAL
+                ) {
+                    return camera
+                }
+            }
+        }
+        return cameras[0]
     }
 
     private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
         ContextCompat.checkSelfPermission(
-            baseContext, it) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun getOutputDirectory(): File {
-        val mediaDir = externalMediaDirs.firstOrNull()?.let {
-            File(it, resources.getString(R.string.app_name)).apply { mkdirs() } }
-        return if (mediaDir != null && mediaDir.exists())
-            mediaDir else filesDir
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        cameraExecutor.shutdown()
-    }
-
-    companion object {
-        private const val TAG = "CameraXBasic"
-        private const val FILENAME_FORMAT = "yyyy-MM-dd-HH-mm-ss-SSS"
-        private const val REQUEST_CODE_PERMISSIONS = 10
-        private val REQUIRED_PERMISSIONS = arrayOf(Manifest.permission.CAMERA)
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int, permissions: Array<String>, grantResults:
-        IntArray) {
-        if (requestCode == REQUEST_CODE_PERMISSIONS) {
-            if (allPermissionsGranted()) {
-                startCamera()
-            } else {
-                Toast.makeText(this,
-                    "Permissions not granted by the user.",
-                    Toast.LENGTH_SHORT).show()
-                finish()
-            }
-        }
+            baseContext, it
+        ) == PackageManager.PERMISSION_GRANTED
     }
 }

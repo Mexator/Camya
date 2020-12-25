@@ -3,18 +3,24 @@ package com.mexator.camya.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraDevice
-import android.hardware.camera2.CameraManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.ImageFormat
+import android.graphics.SurfaceTexture
+import android.hardware.camera2.*
+import android.media.Image
+import android.media.ImageReader
 import android.os.Bundle
 import android.util.Log
+import android.view.Surface
+import android.view.TextureView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ActivityCameraBinding
-import io.reactivex.Observable
+import java.nio.ByteBuffer
 
 class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
@@ -30,16 +36,12 @@ class CameraActivity : AppCompatActivity() {
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        if (allPermissionsGranted()) {
-            startCamera()
-        } else {
+        if (!allPermissionsGranted()) {
             // Request permissions with new API
             val launcher = registerForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions()
-            ) {
-                if (allPermissionsGranted()) {
-                    startCamera()
-                } else {
+            ) { map ->
+                if (!map.values.all { it }) {
                     Toast
                         .makeText(
                             baseContext,
@@ -52,63 +54,84 @@ class CameraActivity : AppCompatActivity() {
             }
             launcher.launch(REQUIRED_PERMISSIONS)
         }
-    }
-
-    private fun takePhoto() {
-
-    }
-
-
-    enum class DeviceStateEvents {
-        ON_OPENED, ON_CLOSED, ON_DISCONNECTED
+        startCamera()
     }
 
     private fun startCamera() {
-        openCamera()
-            .subscribe {
-                Log.d(TAG, "startCamera: $it")
-            }
-    }
-
-    private fun openCamera(): Observable<Pair<DeviceStateEvents, CameraDevice>> {
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraID = chooseCamera()
 
-        return Observable.create { emitter ->
-            try {
-                cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
-                    override fun onOpened(camera: CameraDevice) {
-                        emitter.onNext(Pair(DeviceStateEvents.ON_OPENED, camera))
-                    }
-
-                    override fun onDisconnected(camera: CameraDevice) {
-                        emitter.onNext(Pair(DeviceStateEvents.ON_DISCONNECTED, camera))
-                    }
-
-                    override fun onError(camera: CameraDevice, error: Int) {
-                        emitter.onError(
-                            when (error) {
-                                ERROR_CAMERA_IN_USE -> Throwable("ERROR_CAMERA_IN_USE")
-                                ERROR_MAX_CAMERAS_IN_USE -> Throwable("ERROR_MAX_CAMERAS_IN_USE")
-                                ERROR_CAMERA_DISABLED -> Throwable("ERROR_CAMERA_DISABLED")
-                                ERROR_CAMERA_DEVICE -> Throwable("ERROR_CAMERA_DEVICE")
-                                ERROR_CAMERA_SERVICE -> Throwable("ERROR_CAMERA_SERVICE")
-                                else -> Throwable("Some other error, code $error")
+        try {
+            cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
+                override fun onOpened(camera: CameraDevice) {
+                    binding.preview.surfaceTextureListener =
+                        object : TextureView.SurfaceTextureListener {
+                            override fun onSurfaceTextureAvailable(
+                                surface: SurfaceTexture?,
+                                width: Int,
+                                height: Int
+                            ) {
+                                startPreview(camera)
                             }
-                        )
-                    }
 
-                    override fun onClosed(camera: CameraDevice) {
-                        emitter.onNext(Pair(DeviceStateEvents.ON_CLOSED, camera))
-                        emitter.onComplete()
-                    }
+                            override fun onSurfaceTextureSizeChanged(
+                                surface: SurfaceTexture?,
+                                width: Int,
+                                height: Int
+                            ) {
+                            }
 
-                }, null)
-            } catch (ex: SecurityException) {
-                emitter.onError(ex)
-            }
+                            override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
+                                false
+
+                            override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
+                        }
+                }
+
+                override fun onDisconnected(camera: CameraDevice) {}
+                override fun onError(camera: CameraDevice, error: Int) {}
+            }, null)
+        } catch (ex: SecurityException) {
+            // This try...catch was added because of Android Studio warning
+            Log.wtf(TAG, "This should never happen", ex)
         }
+    }
 
+    private fun startPreview(camera: CameraDevice) {
+        val surface = Surface(binding.preview.surfaceTexture)
+
+        val mImageReader = ImageReader.newInstance(176, 144, ImageFormat.JPEG, 1);
+        mImageReader.setOnImageAvailableListener({
+            Log.d(TAG, it.toString())
+            val image = mImageReader.acquireLatestImage()
+            val planes: Array<Image.Plane> = image.planes
+            val buffer: ByteBuffer = planes[0].buffer
+            val data = ByteArray(buffer.capacity())
+            buffer.get(data)
+            val bitmap: Bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
+            binding.iv.setImageBitmap(bitmap)
+        }, null);
+
+        val builder1 = camera
+            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+        builder1.addTarget(surface)
+        val builder2 = camera
+            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
+        builder2.addTarget(mImageReader.surface)
+        camera.createCaptureSession(
+            listOf(surface, mImageReader.surface),
+            object : CameraCaptureSession.StateCallback() {
+                override fun onConfigured(session: CameraCaptureSession) {
+                    session.setRepeatingRequest(builder1.build(), null, null)
+                    session.capture(builder2.build(), null, null)
+
+                }
+
+                override fun onConfigureFailed(session: CameraCaptureSession) {}
+
+            },
+            null
+        )
     }
 
     private fun chooseCamera(): String {

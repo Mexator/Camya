@@ -7,7 +7,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
 import android.media.Image
 import android.media.ImageReader
 import android.os.Bundle
@@ -20,11 +23,15 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ActivityCameraBinding
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
 class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
     private lateinit var cameraManager: CameraManager
+    lateinit var mImageReader: ImageReader
 
     companion object {
         private const val TAG = "CameraActivity"
@@ -100,7 +107,7 @@ class CameraActivity : AppCompatActivity() {
     private fun startPreview(camera: CameraDevice) {
         val surface = Surface(binding.preview.surfaceTexture)
 
-        val mImageReader = ImageReader.newInstance(176, 144, ImageFormat.JPEG, 1);
+        mImageReader = ImageReader.newInstance(176, 144, ImageFormat.JPEG, 1);
         mImageReader.setOnImageAvailableListener({
             Log.d(TAG, it.toString())
             val image = mImageReader.acquireLatestImage()
@@ -108,6 +115,7 @@ class CameraActivity : AppCompatActivity() {
             val buffer: ByteBuffer = planes[0].buffer
             val data = ByteArray(buffer.capacity())
             buffer.get(data)
+            image.close()
             val bitmap: Bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
             binding.iv.setImageBitmap(bitmap)
         }, null);
@@ -123,8 +131,9 @@ class CameraActivity : AppCompatActivity() {
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     session.setRepeatingRequest(builder1.build(), null, null)
-                    session.capture(builder2.build(), null, null)
-
+                    Observable.interval(1, TimeUnit.SECONDS)
+                        .observeOn(AndroidSchedulers.mainThread())
+                        .subscribe { session.capture(builder2.build(), null, null) }
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {}

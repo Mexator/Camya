@@ -17,11 +17,13 @@ import android.os.Bundle
 import android.util.Log
 import android.view.Surface
 import android.view.TextureView
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
+import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
@@ -32,6 +34,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
     private lateinit var cameraManager: CameraManager
     lateinit var mImageReader: ImageReader
+    lateinit var detector: MovementDetector
 
     companion object {
         private const val TAG = "CameraActivity"
@@ -107,9 +110,8 @@ class CameraActivity : AppCompatActivity() {
     private fun startPreview(camera: CameraDevice) {
         val surface = Surface(binding.preview.surfaceTexture)
 
-        mImageReader = ImageReader.newInstance(176, 144, ImageFormat.JPEG, 1);
+        mImageReader = ImageReader.newInstance(176, 144, ImageFormat.JPEG, 2);
         mImageReader.setOnImageAvailableListener({
-            Log.d(TAG, it.toString())
             val image = mImageReader.acquireLatestImage()
             val planes: Array<Image.Plane> = image.planes
             val buffer: ByteBuffer = planes[0].buffer
@@ -120,18 +122,25 @@ class CameraActivity : AppCompatActivity() {
             binding.iv.setImageBitmap(bitmap)
         }, null);
 
+        detector = MovementDetector(Pair(176, 144))
+        detector.isDetected.subscribe {
+            Log.d(TAG, "Detector:$it")
+            binding.move.visibility = if (it) View.VISIBLE else View.INVISIBLE
+        }
+
         val builder1 = camera
             .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
         builder1.addTarget(surface)
         val builder2 = camera
             .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
         builder2.addTarget(mImageReader.surface)
+        builder2.addTarget(detector.surface)
         camera.createCaptureSession(
-            listOf(surface, mImageReader.surface),
+            listOf(surface, mImageReader.surface, detector.surface),
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     session.setRepeatingRequest(builder1.build(), null, null)
-                    Observable.interval(1, TimeUnit.SECONDS)
+                    Observable.interval(0L, 1, TimeUnit.SECONDS)
                         .observeOn(AndroidSchedulers.mainThread())
                         .subscribe { session.capture(builder2.build(), null, null) }
                 }

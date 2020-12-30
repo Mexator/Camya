@@ -90,7 +90,10 @@ class CameraActivity : AppCompatActivity() {
                 cameraDevice = camera
 
                 prepareRecorder()
-//                val recSurface = recorder.surface
+
+                // This is very weird shit, but it is impossible to obtain surface by calling
+                // recorder.getSurface() - it fails with IllegalStateException
+                val recSurface = recSurf
 
                 detector = MovementDetector(Pair(176, 144))
                 val detectorSurface = detector.surface
@@ -100,7 +103,7 @@ class CameraActivity : AppCompatActivity() {
                         surfaces.add(it)
                     }
 
-                startCapture(camera, previewSurface, recSurf, detectorSurface)
+                startCapture(camera, previewSurface, recSurface, detectorSurface)
                 startWatching()
             }) { error ->
                 Log.e(TAG, null, error)
@@ -135,7 +138,7 @@ class CameraActivity : AppCompatActivity() {
         return result
     }
 
-    val recSurf = MediaCodec.createPersistentInputSurface()
+    private val recSurf = MediaCodec.createPersistentInputSurface()
     private fun prepareRecorder() {
         recorder.reset()
         recorder.apply {
@@ -228,19 +231,26 @@ class CameraActivity : AppCompatActivity() {
             .switchMapCompletable {
                 binding.move.visibility = if (it) View.VISIBLE else View.INVISIBLE
                 Log.d(TAG, "Detector:$it")
-                if (it and !started) {
-                    recorder.start()
-                    started = true
-                    Log.d(TAG, "Recording started")
+                if (it) {
+                    if (!started) {
+                        recorder.start()
+                        started = true
+                        Log.d(TAG, "Recording started")
+                    }
+                    // Do nothing
                     Completable.complete()
                 } else {
-                    Completable.timer(5, TimeUnit.SECONDS)
-                        .doOnComplete {
-                            recorder.stop()
-                            prepareRecorder()
-                            started = false
-                            Log.d(TAG, "Recording stopped")
-                        }
+                    if (started) {
+                        Completable.timer(5, TimeUnit.SECONDS)
+                            .doOnComplete {
+                                recorder.stop()
+                                prepareRecorder()
+                                started = false
+                                Log.d(TAG, "Recording stopped")
+                            }
+                    } else {
+                        Completable.complete()
+                    }
                 }
             }
             .subscribe({}) { error -> error.printStackTrace() }

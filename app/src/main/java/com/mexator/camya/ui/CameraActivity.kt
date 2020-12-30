@@ -4,7 +4,11 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.SurfaceTexture
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.util.Log
@@ -18,22 +22,27 @@ import androidx.core.content.ContextCompat
 import com.mexator.camya.R
 import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
+import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
-import kotlin.Exception
 
 class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
 
     private lateinit var cameraManager: CameraManager
     private lateinit var detector: MovementDetector
+    private lateinit var cameraDevice: CameraDevice
     private val recorder: MediaRecorder = MediaRecorder()
     private val surfaces: MutableList<Surface> = mutableListOf()
+
+    private val compositeDisposable = CompositeDisposable()
 
     companion object {
         private const val TAG = "CameraActivity"
@@ -62,65 +71,92 @@ class CameraActivity : AppCompatActivity() {
             onPermissionsGranted()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        compositeDisposable.dispose()
+        detector.release()
+        recorder.release()
+        cameraDevice.close()
+        surfaces.onEach { it.release() }
+    }
+
     private fun onPermissionsGranted() {
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraID = chooseCamera()
-        val a = openCamera(cameraID)
+        // TODO Adjust input size
+        val job = waitForPreviewSurface()
+            .andThen(openCamera(cameraID))
             .subscribe({ camera ->
-                binding.preview.surfaceTextureListener =
-                    object : TextureView.SurfaceTextureListener {
-                        override fun onSurfaceTextureAvailable(
-                            surface: SurfaceTexture?,
-                            width: Int,
-                            height: Int
-                        ) {
-                            startPreview(camera)
-                        }
+                cameraDevice = camera
 
-                        override fun onSurfaceTextureSizeChanged(
-                            surface: SurfaceTexture?,
-                            width: Int,
-                            height: Int
-                        ) {
-                        }
+                prepareRecorder()
+//                val recSurface = recorder.surface
 
-                        override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
-                            false
+                detector = MovementDetector(Pair(176, 144))
+                val detectorSurface = detector.surface
 
-                        override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
+                val previewSurface = Surface(binding.preview.surfaceTexture)
+                    .also {
+                        surfaces.add(it)
                     }
-            }) {
-                Log.e(TAG, null, it)
-            }
 
+                startCapture(camera, previewSurface, recSurf, detectorSurface)
+                startWatching()
+            }) { error ->
+                Log.e(TAG, null, error)
+            }
+        compositeDisposable.add(job)
     }
 
+    private fun waitForPreviewSurface(): Completable {
+        val result = CompletableSubject.create()
+        binding.preview.surfaceTextureListener =
+            object : TextureView.SurfaceTextureListener {
+                override fun onSurfaceTextureAvailable(
+                    surface: SurfaceTexture?,
+                    width: Int,
+                    height: Int
+                ) {
+                    result.onComplete()
+                }
+
+                override fun onSurfaceTextureSizeChanged(
+                    surface: SurfaceTexture?,
+                    width: Int,
+                    height: Int
+                ) {
+                }
+
+                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
+                    false
+
+                override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
+            }
+        return result
+    }
+
+    val recSurf = MediaCodec.createPersistentInputSurface()
     private fun prepareRecorder() {
         recorder.reset()
         recorder.apply {
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             // Set output filename to recording start timestamp. They should not overlap usually
+            val format = SimpleDateFormat("dd.MM.yyyy.HH:mm:ss", Locale.US)
             // TODO Save to gallery?
-            val format = SimpleDateFormat("dd.MM.yyyy.hh:mm:ss", Locale.US)
             val dir = filesDir.absolutePath
             val name = dir + "/" + format.format(Date())
             setOutputFile(name)
             Log.d(TAG, "saved video: $name")
-            setVideoEncodingBitRate(10_000_000)
             setVideoSize(176, 144)
-            setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+            setVideoFrameRate(15)
+            setInputSurface(recSurf)
         }
+        recorder.prepare()
     }
 
     var started = false
-    private fun saveRecord() {
-        if (started) {
-            recorder.stop()
-            started = false
-        }
-        recorder.reset()
-    }
 
     private fun openCamera(cameraID: String): Single<CameraDevice> {
         val result = SingleSubject.create<CameraDevice>()
@@ -154,47 +190,61 @@ class CameraActivity : AppCompatActivity() {
         return result
     }
 
-    private fun startPreview(camera: CameraDevice) {
-        val surface = Surface(binding.preview.surfaceTexture)
-        // TODO Adjust input size
-        detector = MovementDetector(Pair(176, 144))
-        prepareRecorder()
-        recorder.prepare()
-        val a = detector.isDetected.subscribe({
-            Log.d(TAG, "Detector:$it")
-            binding.move.visibility = if (it) View.VISIBLE else View.INVISIBLE
-            if (it && !started) {
-                recorder.start()
-                started = true
-            }
-        }) { it.printStackTrace() }
-
-        val builder1 = camera
-            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        builder1.addTarget(surface)
-        builder1.addTarget(recorder.surface)
-        val builder2 = camera
-            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW)
-        builder2.addTarget(detector.surface)
+    // Start writing to surfaces
+    private fun startCapture(
+        camera: CameraDevice,
+        previewSurface: Surface, recorderSurface: Surface, detectorSurface: Surface
+    ) {
+        val previewRequest = camera
+            .createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
+                addTarget(previewSurface)
+                addTarget(recorderSurface)
+            }.build()
+        val detectorRequest = camera
+            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
+                addTarget(detector.surface)
+            }.build()
         camera.createCaptureSession(
-            listOf(
-                surface,
-                detector.surface,
-                recorder.surface
-            ),
+            listOf(previewSurface, detectorSurface, recorderSurface),
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
-                    session.setRepeatingRequest(builder1.build(), null, null)
-                    Observable.interval(0L, 1, TimeUnit.SECONDS)
-                        .observeOn(AndroidSchedulers.mainThread())
-                        .subscribe { session.capture(builder2.build(), null, null) }
+                    session.setRepeatingRequest(previewRequest, null, null)
+                    val job =
+                        Observable.interval(0L, 1, TimeUnit.SECONDS)
+                            .subscribe { session.capture(detectorRequest, null, null) }
+                    compositeDisposable.add(job)
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {}
-
             },
             null
         )
+    }
+
+    // Start recorder when detector detects movement and stop after timeout
+    private fun startWatching() {
+        val job = detector.isDetected
+            .distinctUntilChanged()
+            .switchMapCompletable {
+                binding.move.visibility = if (it) View.VISIBLE else View.INVISIBLE
+                Log.d(TAG, "Detector:$it")
+                if (it and !started) {
+                    recorder.start()
+                    started = true
+                    Log.d(TAG, "Recording started")
+                    Completable.complete()
+                } else {
+                    Completable.timer(5, TimeUnit.SECONDS)
+                        .doOnComplete {
+                            recorder.stop()
+                            prepareRecorder()
+                            started = false
+                            Log.d(TAG, "Recording stopped")
+                        }
+                }
+            }
+            .subscribe({}) { error -> error.printStackTrace() }
+        compositeDisposable.add(job)
     }
 
     private fun chooseCamera(): String {
@@ -220,10 +270,5 @@ class CameraActivity : AppCompatActivity() {
 
     private fun showMessage(messageRes: Int) {
         Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
-    }
-
-    override fun onPause() {
-        super.onPause()
-        saveRecord()
     }
 }

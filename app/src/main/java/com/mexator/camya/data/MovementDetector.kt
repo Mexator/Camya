@@ -75,6 +75,11 @@ class MovementDetector(private val inputSize: Pair<Int, Int>) {
         isDetected = _isDetected
     }
 
+    fun release() {
+        imageReader.close()
+        prevImage?.recycle()
+    }
+
     private fun pixelDiffPercent(image1: Bitmap, image2: Bitmap): Double {
         if (image1.width != image2.width || image1.height != image2.height) {
             val f = "(%d,%d) vs. (%d,%d)".format(

@@ -52,6 +52,6 @@ class ChooseFolderViewModel : ViewModel() {
 
     fun folderChosen(path: String) {
         Log.d(getTag(),"Chosen: $path")
-        repository.createFolder("$path/folder")
+//        repository.createFolder("$path/folder")
     }
 }

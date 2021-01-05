@@ -20,6 +20,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
+import com.mexator.camya.data.ActualRepository
 import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
 import io.reactivex.Completable
@@ -138,6 +139,7 @@ class CameraActivity : AppCompatActivity() {
         return result
     }
 
+    var curName = ""
     private val recSurf = MediaCodec.createPersistentInputSurface()
     private fun prepareRecorder() {
         recorder.reset()
@@ -146,12 +148,12 @@ class CameraActivity : AppCompatActivity() {
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             // Set output filename to recording start timestamp. They should not overlap usually
-            val format = SimpleDateFormat("dd.MM.yyyy.HH:mm:ss", Locale.US)
+            val format = SimpleDateFormat("dd.MM.yyyy.HH.mm.ss", Locale.US)
             // TODO Save to gallery?
             val dir = filesDir.absolutePath
-            val name = dir + "/" + format.format(Date())
-            setOutputFile(name)
-            Log.d(TAG, "saved video: $name")
+            curName = dir + "/" + format.format(Date())
+            setOutputFile(curName)
+            Log.d(TAG, "saved video: $curName")
             setVideoSize(176, 144)
             setVideoFrameRate(15)
             setInputSurface(recSurf)
@@ -245,6 +247,7 @@ class CameraActivity : AppCompatActivity() {
                         Completable.timer(5, TimeUnit.SECONDS)
                             .doOnComplete {
                                 recorder.stop()
+                                ActualRepository.uploadFile(curName)
                                 prepareRecorder()
                                 started = false
                                 Log.d(TAG, "Recording stopped")

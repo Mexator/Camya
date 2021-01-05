@@ -236,6 +236,7 @@ class CameraActivity : AppCompatActivity() {
                         recorder.start()
                         started = true
                         Log.d(TAG, "Recording started")
+                        binding.record.visibility = View.VISIBLE
                     }
                     // Do nothing
                     Completable.complete()
@@ -247,6 +248,7 @@ class CameraActivity : AppCompatActivity() {
                                 prepareRecorder()
                                 started = false
                                 Log.d(TAG, "Recording stopped")
+                                binding.record.visibility = View.INVISIBLE
                             }
                     } else {
                         Completable.complete()

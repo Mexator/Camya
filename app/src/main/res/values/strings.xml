@@ -10,11 +10,13 @@
     <string name="title_button_login">Войти</string>
     <string name="title_button_proceed">Продолжить</string>
 <!--ChooseFolderActivity-->
-    <string name="title_choose_folder">Выберите папку, куда сохранять данные</string>
+    <string name="title_choose_folder">Куда сохранять записи?</string>
     <string name="title_button_choose">Выбрать</string>
     <string name="title_button_create">Создать папку</string>
 <!--CameraActivity-->
     <string name="error_permissions_not_granted">Приложению не были выданы нужные разрешения</string>
+    <string name="label_recording">Запись…</string>
+    <string name="label_move">Обнаружено движение</string>
 
 <!--List State-->
     <string name="state_loading">Загрузка…</string>

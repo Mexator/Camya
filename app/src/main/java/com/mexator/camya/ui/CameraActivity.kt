@@ -3,6 +3,7 @@ package com.mexator.camya.ui
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -12,21 +13,24 @@ import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.os.Bundle
 import android.util.Log
+import android.util.Size
 import android.view.Surface
 import android.view.TextureView
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.mexator.camya.R
-import com.mexator.camya.data.ActualRepository
 import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
+import com.mexator.camya.extensions.toPair
+import com.mexator.camya.mvvm.camera.CameraActivityViewModel
+import com.mexator.camya.mvvm.camera.CameraActivityViewState
 import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.Single
-import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
@@ -36,14 +40,19 @@ import java.util.concurrent.TimeUnit
 
 class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
+    private val viewModel: CameraActivityViewModel by viewModels()
 
     private lateinit var cameraManager: CameraManager
     private lateinit var detector: MovementDetector
-    private lateinit var cameraDevice: CameraDevice
-    private val recorder: MediaRecorder = MediaRecorder()
-    private val surfaces: MutableList<Surface> = mutableListOf()
 
+    private val recorder: MediaRecorder = MediaRecorder()
+    private val recSurf = MediaCodec.createPersistentInputSurface()
+
+
+    private val surfaces: MutableList<Surface> = mutableListOf()
     private val compositeDisposable = CompositeDisposable()
+
+    private var state = InternalState()
 
     companion object {
         private const val TAG = "CameraActivity"
@@ -55,7 +64,15 @@ class CameraActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        val job = viewModel.viewState.subscribe {
+            applyViewState(it)
+        }
+        compositeDisposable.add(job)
+    }
 
+    override fun onStart() {
+        super.onStart()
+        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         if (!allPermissionsGranted()) {
             // Request permissions with new API
             val launcher = registerForActivityResult(
@@ -77,18 +94,22 @@ class CameraActivity : AppCompatActivity() {
         compositeDisposable.dispose()
         detector.release()
         recorder.release()
-        cameraDevice.close()
         surfaces.onEach { it.release() }
     }
 
+    private fun applyViewState(state: CameraActivityViewState) {
+        with(state) {
+            binding.move.visibility = if (moveDetected) View.VISIBLE else View.INVISIBLE
+            binding.record.visibility = if (isRecording) View.VISIBLE else View.INVISIBLE
+        }
+    }
+
     private fun onPermissionsGranted() {
-        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
         val cameraID = chooseCamera()
-        // TODO Adjust input size
+
         val job = waitForPreviewSurface()
             .andThen(openCamera(cameraID))
             .subscribe({ camera ->
-                cameraDevice = camera
 
                 prepareRecorder()
 
@@ -96,7 +117,8 @@ class CameraActivity : AppCompatActivity() {
                 // recorder.getSurface() - it fails with IllegalStateException
                 val recSurface = recSurf
 
-                detector = MovementDetector(Pair(176, 144))
+                detector =
+                    MovementDetector(getSmallestResolution(state.chosenCameraChars!!).toPair())
                 val detectorSurface = detector.surface
 
                 val previewSurface = Surface(binding.preview.surfaceTexture)
@@ -132,36 +154,34 @@ class CameraActivity : AppCompatActivity() {
                 }
 
                 override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
-                    false
+                    true
 
                 override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
             }
         return result
     }
 
-    var curName = ""
-    private val recSurf = MediaCodec.createPersistentInputSurface()
     private fun prepareRecorder() {
         recorder.reset()
+
+        // Set output filename to recording start timestamp. They should not overlap usually
+        val format = SimpleDateFormat("dd.MM.yyyy.HH.mm.ss", Locale.US)
+        // TODO Save to gallery?
+        val curName = filesDir.absolutePath + "/" + format.format(Date())
+
         recorder.apply {
             setVideoSource(MediaRecorder.VideoSource.SURFACE)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-            // Set output filename to recording start timestamp. They should not overlap usually
-            val format = SimpleDateFormat("dd.MM.yyyy.HH.mm.ss", Locale.US)
-            // TODO Save to gallery?
-            val dir = filesDir.absolutePath
-            curName = dir + "/" + format.format(Date())
             setOutputFile(curName)
-            Log.d(TAG, "saved video: $curName")
-            setVideoSize(176, 144)
+            val size = getSmallestResolution(state.chosenCameraChars!!)
+            setVideoSize(size.width, size.height)
             setVideoFrameRate(15)
             setInputSurface(recSurf)
         }
         recorder.prepare()
+        state = state.copy(curPath = curName)
     }
-
-    var started = false
 
     private fun openCamera(cameraID: String): Single<CameraDevice> {
         val result = SingleSubject.create<CameraDevice>()
@@ -226,32 +246,22 @@ class CameraActivity : AppCompatActivity() {
         )
     }
 
-    // Start recorder when detector detects movement and stop after timeout
+    // Start recorder when detector detects movement and stop after timeout. Cancel timeout,
+    // if move is detected
     private fun startWatching() {
         val job = detector.isDetected
             .distinctUntilChanged()
             .switchMapCompletable {
-                binding.move.visibility = if (it) View.VISIBLE else View.INVISIBLE
                 Log.d(TAG, "Detector:$it")
+                viewModel.setMoveDetected(it)
                 if (it) {
-                    if (!started) {
-                        recorder.start()
-                        started = true
-                        Log.d(TAG, "Recording started")
-                        binding.record.visibility = View.VISIBLE
-                    }
-                    // Do nothing
+                    onMove()
                     Completable.complete()
                 } else {
-                    if (started) {
+                    if (state.started) {
                         Completable.timer(5, TimeUnit.SECONDS)
                             .doOnComplete {
-                                recorder.stop()
-                                ActualRepository.uploadFile(curName)
-                                prepareRecorder()
-                                started = false
-                                Log.d(TAG, "Recording stopped")
-                                binding.record.visibility = View.INVISIBLE
+                                softStop()
                             }
                     } else {
                         Completable.complete()
@@ -262,6 +272,35 @@ class CameraActivity : AppCompatActivity() {
         compositeDisposable.add(job)
     }
 
+    private fun onMove() {
+        if (!state.started) {
+            state = state.copy(started = true)
+            try {
+                recorder.start()
+                Log.d(TAG, "Recording started")
+                viewModel.recordStarted()
+            } catch (ex: Exception) {
+                Log.e(TAG, "Can't start MediaRecorder:", ex)
+            }
+        }
+    }
+
+    // Try to stop recorder and upload file
+    private fun softStop() {
+        try {
+            recorder.stop()
+            state = state.copy(started = false)
+            viewModel.recordFinished()
+            state.curPath?.let {
+                viewModel.uploadRecord(it)
+            }
+            Log.d(TAG, "Recording stopped")
+            prepareRecorder()
+        } catch (ex: Exception) {
+            Log.e(TAG, "Can't stop MediaRecorder:", ex)
+        }
+    }
+
     private fun chooseCamera(): String {
         val cameras = cameraManager.cameraIdList
         for (camera in cameras) {
@@ -270,10 +309,13 @@ class CameraActivity : AppCompatActivity() {
                 if (facing == CameraCharacteristics.LENS_FACING_BACK
                     || facing == CameraCharacteristics.LENS_FACING_EXTERNAL
                 ) {
+                    state = state.copy(chosenCameraChars = chars)
                     return camera
                 }
             }
         }
+        val chars = cameraManager.getCameraCharacteristics(cameras[0])
+        state = state.copy(chosenCameraChars = chars)
         return cameras[0]
     }
 
@@ -286,4 +328,25 @@ class CameraActivity : AppCompatActivity() {
     private fun showMessage(messageRes: Int) {
         Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
     }
+
+    private fun getSmallestResolution(characteristics: CameraCharacteristics): Size {
+        val confMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
+        val sizes = confMap!!.getOutputSizes(ImageFormat.JPEG)
+        // Usually the cameras keep aspect ratio, so I can compare just heights
+        var minH = -1
+        var index = 0
+        for ((idx, value) in sizes.withIndex()) {
+            if (minH > value.height || minH == -1) {
+                index = idx
+                minH = value.height
+            }
+        }
+        return sizes[index]
+    }
+
+    private data class InternalState(
+        val curPath: String? = null,
+        val chosenCameraChars: CameraCharacteristics? = null,
+        val started: Boolean = false
+    )
 }

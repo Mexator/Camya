@@ -34,6 +34,7 @@ import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.CompletableSubject
 import io.reactivex.subjects.SingleSubject
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -95,6 +96,9 @@ class CameraActivity : AppCompatActivity() {
         detector.release()
         recorder.release()
         surfaces.onEach { it.release() }
+        state.curPath?.let {
+            File(it).delete()
+        }
     }
 
     private fun applyViewState(state: CameraActivityViewState) {
@@ -178,6 +182,7 @@ class CameraActivity : AppCompatActivity() {
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
             setVideoEncoder(MediaRecorder.VideoEncoder.H264)
             setOutputFile(curName)
+            Log.d(TAG, curName)
             val size = getSmallestResolution(state.chosenCameraChars!!)
             setVideoSize(size.width, size.height)
             setVideoFrameRate(15)

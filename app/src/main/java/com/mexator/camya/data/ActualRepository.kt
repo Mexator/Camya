@@ -62,12 +62,16 @@ object ActualRepository {
     fun uploadFile(path: String) {
         val name = path.split("/").last()
         val job = Single.defer {
+            Log.d(TAG, "Upload started")
             Single.just(
                 diskClient!!.getUploadLink("$diskPath/$name", false)
             )
         }.flatMapCompletable {
             Completable.fromRunnable { diskClient!!.uploadFile(it, true, File(path), null) }
-        }.subscribe { Log.d(TAG, "Upload completed: $diskPath/$name") }
+        }.subscribe {
+            Log.d(TAG, "Upload completed: $diskPath/$name")
+            File(path).delete()
+        }
 
         compositeDisposable.add(job)
     }

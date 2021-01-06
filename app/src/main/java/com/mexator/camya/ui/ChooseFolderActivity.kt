@@ -56,6 +56,7 @@ class ChooseFolderActivity : AppCompatActivity() {
         Log.d(getTag(), mState.toString())
         with(binding) {
             if (mState.loading) stateAdapter.state = StateAdapter.Loading
+            else stateAdapter.state = null
             adapter.submitList(mState.dirList)
             adapter.notifyDataSetChanged()
         }

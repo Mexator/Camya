@@ -25,6 +25,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
 
                 <data android:scheme="camya" />
+
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
         <activity
@@ -32,11 +36,6 @@
             android:label="@string/title_choose_folder" />
         <activity android:name=".ui.CameraActivity"
             android:label="CameraActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
     </application>
 

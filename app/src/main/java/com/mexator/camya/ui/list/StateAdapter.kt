@@ -39,8 +39,8 @@ class StateAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
                     loadingAdapter.shown = false
                 }
             }
-            notifyDataSetChanged()
             field = value
+            notifyDataSetChanged()
         }
 
     private var errorAdapter = ErrorAdapter()
@@ -64,6 +64,11 @@ class StateAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
 class LoadingAdapter : RecyclerView.Adapter<LoadingHolder>() {
     var shown: Boolean = false
+        set(value) {
+            field = value
+            notifyDataSetChanged()
+        }
+
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): LoadingHolder =
         LoadingHolder(
             LayoutInflater.from(parent.context).inflate(R.layout.item_loading, parent, false)

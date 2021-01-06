@@ -136,28 +136,32 @@ class CameraActivity : AppCompatActivity() {
 
     private fun waitForPreviewSurface(): Completable {
         val result = CompletableSubject.create()
-        binding.preview.surfaceTextureListener =
-            object : TextureView.SurfaceTextureListener {
-                override fun onSurfaceTextureAvailable(
-                    surface: SurfaceTexture?,
-                    width: Int,
-                    height: Int
-                ) {
-                    result.onComplete()
+        if (binding.preview.isAvailable) {
+            result.onComplete()
+        } else {
+            binding.preview.surfaceTextureListener =
+                object : TextureView.SurfaceTextureListener {
+                    override fun onSurfaceTextureAvailable(
+                        surface: SurfaceTexture?,
+                        width: Int,
+                        height: Int
+                    ) {
+                        result.onComplete()
+                    }
+
+                    override fun onSurfaceTextureSizeChanged(
+                        surface: SurfaceTexture?,
+                        width: Int,
+                        height: Int
+                    ) {
+                    }
+
+                    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
+                        true
+
+                    override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
                 }
-
-                override fun onSurfaceTextureSizeChanged(
-                    surface: SurfaceTexture?,
-                    width: Int,
-                    height: Int
-                ) {
-                }
-
-                override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
-                    true
-
-                override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
-            }
+        }
         return result
     }
 

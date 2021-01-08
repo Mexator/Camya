@@ -24,7 +24,7 @@ object ActualRepository {
     private var token: String = ""
     var diskPath: String = ""
 
-    val compositeDisposable = CompositeDisposable()
+    private val compositeDisposable = CompositeDisposable()
 
     fun setDiskToken(mToken: String) {
         token = mToken

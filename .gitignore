@@ -1,5 +1,6 @@
 # API secret keys
 secrets.properties
+keystore.properties
 # Built application files
 *.apk
 *.aar

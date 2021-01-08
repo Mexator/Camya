@@ -30,10 +30,9 @@ import com.mexator.camya.mvvm.camera.CameraActivityViewModel
 import com.mexator.camya.mvvm.camera.CameraActivityViewState
 import io.reactivex.Completable
 import io.reactivex.Observable
-import io.reactivex.Single
 import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
-import io.reactivex.subjects.SingleSubject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -46,11 +45,12 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var cameraManager: CameraManager
     private lateinit var detector: MovementDetector
 
-    private val recorder: MediaRecorder = MediaRecorder()
+    private var recorder: MediaRecorder = MediaRecorder()
     private val recSurf = MediaCodec.createPersistentInputSurface()
 
 
     private val surfaces: MutableList<Surface> = mutableListOf()
+    private val viewModelDisposable = CompositeDisposable()
     private val compositeDisposable = CompositeDisposable()
 
     private var state = InternalState()
@@ -65,10 +65,6 @@ class CameraActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        val job = viewModel.viewState.subscribe {
-            applyViewState(it)
-        }
-        compositeDisposable.add(job)
     }
 
     override fun onStart() {
@@ -92,6 +88,7 @@ class CameraActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        viewModelDisposable.dispose()
         compositeDisposable.dispose()
         detector.release()
         recorder.release()
@@ -101,20 +98,38 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
+    @Synchronized
     private fun applyViewState(state: CameraActivityViewState) {
+        Log.d(TAG, state.toString())
         with(state) {
             binding.move.visibility = if (moveDetected) View.VISIBLE else View.INVISIBLE
             binding.record.visibility = if (isRecording) View.VISIBLE else View.INVISIBLE
+            if (cameraReopenNeeded) {
+                compositeDisposable.clear()
+                recorder.reset()
+                surfaces.onEach { it.release() }
+                recorder = MediaRecorder()
+                startCamera()
+            }
         }
     }
 
     private fun onPermissionsGranted() {
+        viewModelDisposable.clear()
+        val job = viewModel.viewState.subscribe {
+            applyViewState(it)
+        }
+        viewModelDisposable.add(job)
+    }
+
+    private fun startCamera() {
         val cameraID = chooseCamera()
 
         val job = waitForPreviewSurface()
             .andThen(openCamera(cameraID))
             .subscribe({ camera ->
 
+                viewModel.cameraOpened()
                 prepareRecorder()
 
                 // This is very weird shit, but it is impossible to obtain surface by calling
@@ -134,6 +149,7 @@ class CameraActivity : AppCompatActivity() {
                 startWatching()
             }) { error ->
                 Log.e(TAG, null, error)
+                viewModel.cameraError()
             }
         compositeDisposable.add(job)
     }
@@ -192,12 +208,12 @@ class CameraActivity : AppCompatActivity() {
         state = state.copy(curPath = curName)
     }
 
-    private fun openCamera(cameraID: String): Single<CameraDevice> {
-        val result = SingleSubject.create<CameraDevice>()
+    private fun openCamera(cameraID: String): Observable<CameraDevice> {
+        val result = BehaviorSubject.create<CameraDevice>()
         try {
             cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
-                    result.onSuccess(camera)
+                    result.onNext(camera)
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
@@ -220,6 +236,8 @@ class CameraActivity : AppCompatActivity() {
         } catch (ex: SecurityException) {
             // This try...catch was added because of Android Studio warning
             Log.wtf(TAG, "This should never happen", ex)
+        } catch (ex: Exception) {
+            viewModel.cameraError()
         }
         return result
     }
@@ -281,6 +299,7 @@ class CameraActivity : AppCompatActivity() {
         compositeDisposable.add(job)
     }
 
+    @Synchronized
     private fun onMove() {
         if (!state.started) {
             state = state.copy(started = true)
@@ -295,6 +314,7 @@ class CameraActivity : AppCompatActivity() {
     }
 
     // Try to stop recorder and upload file
+    @Synchronized
     private fun softStop() {
         try {
             recorder.stop()

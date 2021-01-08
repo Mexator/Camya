@@ -49,4 +49,24 @@ class CameraActivityViewModel : ViewModel() {
     fun uploadRecord(filePath: String) {
         repository.uploadFile(filePath)
     }
+
+    fun cameraError() {
+        _viewState.onNext(
+            CameraActivityViewState(
+                moveDetected = false,
+                isRecording = false,
+                cameraReopenNeeded = true
+            )
+        )
+    }
+
+    fun cameraOpened() {
+        _viewState.onNext(
+            CameraActivityViewState(
+                moveDetected = false,
+                isRecording = false,
+                cameraReopenNeeded = false
+            )
+        )
+    }
 }

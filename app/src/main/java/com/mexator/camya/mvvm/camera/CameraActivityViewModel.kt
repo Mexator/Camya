@@ -47,7 +47,7 @@ class CameraActivityViewModel : ViewModel() {
     }
 
     fun uploadRecord(filePath: String) {
-        repository.uploadFile(filePath)
+//        repository.uploadFile(filePath)
     }
 
     fun cameraError() {

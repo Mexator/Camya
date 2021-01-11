@@ -67,11 +67,15 @@ object ActualRepository {
                 diskClient!!.getUploadLink("$diskPath/$name", false)
             )
         }.flatMapCompletable {
-            Completable.fromRunnable { diskClient!!.uploadFile(it, true, File(path), null) }
-        }.subscribe {
-            Log.d(TAG, "Upload completed: $diskPath/$name")
-            File(path).delete()
+            Completable.fromRunnable {
+                diskClient!!.uploadFile(it, true, File(path), null)
+            }
         }
+            .subscribeOn(Schedulers.io())
+            .subscribe {
+                Log.d(TAG, "Upload completed: $diskPath/$name")
+                File(path).delete()
+            }
 
         compositeDisposable.add(job)
     }

@@ -30,6 +30,7 @@ import com.mexator.camya.mvvm.camera.CameraActivityViewModel
 import com.mexator.camya.mvvm.camera.CameraActivityViewState
 import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
@@ -116,9 +117,11 @@ class CameraActivity : AppCompatActivity() {
 
     private fun onPermissionsGranted() {
         viewModelDisposable.clear()
-        val job = viewModel.viewState.subscribe {
-            applyViewState(it)
-        }
+        val job = viewModel.viewState
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                applyViewState(it)
+            }
         viewModelDisposable.add(job)
     }
 
@@ -209,6 +212,7 @@ class CameraActivity : AppCompatActivity() {
     }
 
     private fun openCamera(cameraID: String): Observable<CameraDevice> {
+        Log.d(TAG, "openCamera")
         val result = BehaviorSubject.create<CameraDevice>()
         try {
             cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
@@ -254,7 +258,7 @@ class CameraActivity : AppCompatActivity() {
             }.build()
         val detectorRequest = camera
             .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
-                addTarget(detector.surface)
+                addTarget(detectorSurface)
             }.build()
         camera.createCaptureSession(
             listOf(previewSurface, detectorSurface, recorderSurface),
@@ -302,9 +306,9 @@ class CameraActivity : AppCompatActivity() {
     @Synchronized
     private fun onMove() {
         if (!state.started) {
-            state = state.copy(started = true)
             try {
                 recorder.start()
+                state = state.copy(started = true)
                 Log.d(TAG, "Recording started")
                 viewModel.recordStarted()
             } catch (ex: Exception) {

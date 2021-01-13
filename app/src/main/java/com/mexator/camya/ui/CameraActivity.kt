@@ -2,7 +2,6 @@ package com.mexator.camya.ui
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.graphics.ImageFormat
 import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
@@ -21,11 +20,9 @@ import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import com.mexator.camya.R
 import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
-import com.mexator.camya.extensions.toPair
 import com.mexator.camya.mvvm.camera.CameraActivityViewModel
 import com.mexator.camya.mvvm.camera.CameraActivityViewState
 import io.reactivex.Completable
@@ -47,7 +44,7 @@ class CameraActivity : AppCompatActivity() {
     private lateinit var detector: MovementDetector
 
     private var recorder: MediaRecorder = MediaRecorder()
-    private val recSurf = MediaCodec.createPersistentInputSurface()
+    private val recorderSurface = MediaCodec.createPersistentInputSurface()
 
 
     private val surfaces: MutableList<Surface> = mutableListOf()
@@ -58,8 +55,7 @@ class CameraActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "CameraActivity"
-        private val REQUIRED_PERMISSIONS =
-            arrayOf(Manifest.permission.CAMERA)
+        private const val REQUIRED_PERMISSIONS = Manifest.permission.CAMERA
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -71,23 +67,23 @@ class CameraActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
-        if (!allPermissionsGranted()) {
-            // Request permissions with new API
-            val launcher = registerForActivityResult(
-                ActivityResultContracts.RequestMultiplePermissions()
-            ) { map ->
-                if (map.values.any { it == false }) {
-                    showMessage(R.string.error_permissions_not_granted)
-                    finish()
-                }
-                onPermissionsGranted()
+
+        // Request permissions with new API
+        val launcher = registerForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { granted ->
+            if (!granted) {
+                Toast.makeText(this, R.string.error_permissions_not_granted, Toast.LENGTH_SHORT)
+                    .show()
+                finish()
             }
-            launcher.launch(REQUIRED_PERMISSIONS)
-        } else
             onPermissionsGranted()
+        }
+        launcher.launch(REQUIRED_PERMISSIONS)
     }
 
     override fun onDestroy() {
+        Log.d(TAG, "onDestroy")
         super.onDestroy()
         viewModelDisposable.dispose()
         compositeDisposable.dispose()
@@ -135,12 +131,8 @@ class CameraActivity : AppCompatActivity() {
                 viewModel.cameraOpened()
                 prepareRecorder()
 
-                // This is very weird shit, but it is impossible to obtain surface by calling
-                // recorder.getSurface() - it fails with IllegalStateException
-                val recSurface = recSurf
-
                 detector =
-                    MovementDetector(getSmallestResolution(state.chosenCameraChars!!).toPair())
+                    MovementDetector(getSmallestResolution(state.chosenCameraChars!!))
                 val detectorSurface = detector.surface
 
                 val previewSurface = Surface(binding.preview.surfaceTexture)
@@ -148,7 +140,7 @@ class CameraActivity : AppCompatActivity() {
                         surfaces.add(it)
                     }
 
-                startCapture(camera, previewSurface, recSurface, detectorSurface)
+                startCapture(camera, previewSurface, recorderSurface, detectorSurface)
                 startWatching()
             }) { error ->
                 Log.e(TAG, null, error)
@@ -205,7 +197,7 @@ class CameraActivity : AppCompatActivity() {
             val size = getSmallestResolution(state.chosenCameraChars!!)
             setVideoSize(size.width, size.height)
             setVideoFrameRate(15)
-            setInputSurface(recSurf)
+            setInputSurface(recorderSurface)
         }
         recorder.prepare()
         state = state.copy(curPath = curName)
@@ -225,6 +217,7 @@ class CameraActivity : AppCompatActivity() {
                 }
 
                 override fun onError(camera: CameraDevice, error: Int) {
+                    camera.close()
                     result.onError(
                         when (error) {
                             ERROR_CAMERA_IN_USE -> Throwable("ERROR_CAMERA_IN_USE")
@@ -251,24 +244,23 @@ class CameraActivity : AppCompatActivity() {
         camera: CameraDevice,
         previewSurface: Surface, recorderSurface: Surface, detectorSurface: Surface
     ) {
+        // Here I could use two separate requests, one for recorder and preview, and the other
+        // for detector, invoked once per second, but I have one device that is unable to capture
+        // second request while processing repeating request. That is why I designed MovementDetector
+        // in such way
+
         val previewRequest = camera
             .createCaptureRequest(CameraDevice.TEMPLATE_RECORD).apply {
                 addTarget(previewSurface)
                 addTarget(recorderSurface)
-            }.build()
-        val detectorRequest = camera
-            .createCaptureRequest(CameraDevice.TEMPLATE_PREVIEW).apply {
                 addTarget(detectorSurface)
             }.build()
+
         camera.createCaptureSession(
             listOf(previewSurface, detectorSurface, recorderSurface),
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
                     session.setRepeatingRequest(previewRequest, null, null)
-                    val job =
-                        Observable.interval(0L, 1, TimeUnit.SECONDS)
-                            .subscribe { session.capture(detectorRequest, null, null) }
-                    compositeDisposable.add(job)
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {}
@@ -350,16 +342,6 @@ class CameraActivity : AppCompatActivity() {
         val chars = cameraManager.getCameraCharacteristics(cameras[0])
         state = state.copy(chosenCameraChars = chars)
         return cameras[0]
-    }
-
-    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
-        ContextCompat.checkSelfPermission(
-            baseContext, it
-        ) == PackageManager.PERMISSION_GRANTED
-    }
-
-    private fun showMessage(messageRes: Int) {
-        Toast.makeText(this, messageRes, Toast.LENGTH_SHORT).show()
     }
 
     private fun getSmallestResolution(characteristics: CameraCharacteristics): Size {

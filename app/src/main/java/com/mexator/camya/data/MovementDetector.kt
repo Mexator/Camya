@@ -6,10 +6,17 @@ import android.graphics.ImageFormat
 import android.media.Image
 import android.media.ImageReader
 import android.util.Log
+import android.util.Size
 import android.view.Surface
+import androidx.core.graphics.scale
+import io.reactivex.Completable
 import io.reactivex.Observable
+import io.reactivex.disposables.CompositeDisposable
+import io.reactivex.schedulers.Schedulers
+import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.PublishSubject
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 import kotlin.math.abs
 
 /**
@@ -22,10 +29,13 @@ import kotlin.math.abs
  * @property isDetected observable that emits boolean values on each incoming picture.
  * if movement detected, **true** emitted, otherwise false
  */
-class MovementDetector(private val inputSize: Pair<Int, Int>) {
+class MovementDetector(inputSize: Size) {
     companion object {
         private const val TAG = "MovementDetector"
+        /** Threshold in percents to detect move **/
         private const val THRESHOLD = 10
+        /** Image from camera is downscaled to SCALE_SIZE x SCALE_SIZE to compute pixel difference **/
+        private const val SCALE_SIZE = 32
     }
 
     val surface: Surface
@@ -38,35 +48,58 @@ class MovementDetector(private val inputSize: Pair<Int, Int>) {
         }
     private val imageReader: ImageReader = ImageReader
         .newInstance(
-            inputSize.first,
-            inputSize.second,
+            inputSize.width,
+            inputSize.height,
+            // I know that JPEG adds serious overhead, but the device I need to run this app at
+            // is unable to record YUV by whatever reason. See https://stackoverflow.com/q/65693311/
             ImageFormat.JPEG,
-            1
+            2
         )
-    private val listener = ImageReader.OnImageAvailableListener {
-        val image = imageReader.acquireNextImage()
-        // Decode as Bitmap
-        val planes: Array<Image.Plane> = image.planes
-        val buffer: ByteBuffer = planes[0].buffer
-        val data = ByteArray(buffer.capacity())
-        buffer.get(data)
-        val bitmap: Bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
-        image.close()
 
-        // To make sure that prevImage won't be null in if body
-        val mPrevImage = prevImage
-        if (mPrevImage == null) {
-            _isDetected.onNext(false)
-        } else {
-            val difference = pixelDiffPercent(mPrevImage, bitmap)
-            _isDetected.onNext(difference > THRESHOLD)
+    private val imagePostingSubject: BehaviorSubject<Bitmap> = BehaviorSubject.create()
+    private val listener = ImageReader.OnImageAvailableListener {
+        // The plan is following: acquire image, put it to the subject, and check subject
+        // periodically with Observable.sample()
+        Completable.fromRunnable {
+            imageReader.acquireLatestImage()?.let { image ->
+                val planes: Array<Image.Plane> = image.planes
+                val buffer: ByteBuffer = planes[0].buffer
+                val data = ByteArray(buffer.capacity())
+                buffer.get(data)
+                image.close()
+
+                var bitmap: Bitmap = BitmapFactory
+                    .decodeByteArray(data, 0, data.size)
+                bitmap = bitmap.scale(SCALE_SIZE, SCALE_SIZE)
+
+                imagePostingSubject.onNext(bitmap)
+            }
         }
-        prevImage = bitmap
+            .subscribeOn(Schedulers.computation())
+            .observeOn(Schedulers.computation())
+            .subscribe()
     }
 
+    private val compositeDisposable = CompositeDisposable()
+
     init {
-        imageReader.setOnImageAvailableListener(listener, null)
         surface = imageReader.surface
+        imageReader.setOnImageAvailableListener(listener, null)
+        val job = imagePostingSubject
+            .sample(1, TimeUnit.SECONDS)
+            .observeOn(Schedulers.computation())
+            .subscribe {
+                // To make sure that prevImage won't be null in if body
+                val mPrevImage = prevImage
+                if (mPrevImage == null) {
+                    _isDetected.onNext(false)
+                } else {
+                    val difference = pixelDiffPercent(mPrevImage, it)
+                    _isDetected.onNext(difference > THRESHOLD)
+                }
+                prevImage = it
+            }
+        compositeDisposable.add(job)
     }
 
     private val _isDetected: PublishSubject<Boolean> = PublishSubject.create()
@@ -78,6 +111,7 @@ class MovementDetector(private val inputSize: Pair<Int, Int>) {
     fun release() {
         imageReader.close()
         prevImage?.recycle()
+        compositeDisposable.dispose()
     }
 
     private fun pixelDiffPercent(image1: Bitmap, image2: Bitmap): Double {

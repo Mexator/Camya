@@ -3,7 +3,7 @@ package com.mexator.camya.mvvm.main
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.mexator.camya.data.ActualRepository
-import com.mexator.camya.extensions.getTag
+import com.mexator.camya.util.extensions.getTag
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers

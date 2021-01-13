@@ -7,7 +7,7 @@ import android.util.Log
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.ViewModelProvider
 import com.mexator.camya.databinding.ActivityMainBinding
-import com.mexator.camya.extensions.getTag
+import com.mexator.camya.util.extensions.getTag
 import com.mexator.camya.mvvm.main.MainActivityViewModel
 import com.mexator.camya.mvvm.main.MainActivityViewState
 import io.reactivex.android.schedulers.AndroidSchedulers

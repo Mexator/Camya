@@ -1,9 +1,8 @@
 package com.mexator.camya.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
-import android.graphics.ImageFormat
-import android.graphics.SurfaceTexture
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
 import android.hardware.camera2.CameraDevice
@@ -11,10 +10,11 @@ import android.hardware.camera2.CameraManager
 import android.media.MediaCodec
 import android.media.MediaRecorder
 import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
-import android.util.Size
 import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceHolder
 import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,22 +25,32 @@ import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
 import com.mexator.camya.mvvm.camera.CameraActivityViewModel
 import com.mexator.camya.mvvm.camera.CameraActivityViewState
+import com.mexator.camya.util.extensions.openCameraRx
+import com.mexator.camya.util.functions.getSmallestResolution
 import io.reactivex.Completable
-import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
-import io.reactivex.subjects.BehaviorSubject
 import io.reactivex.subjects.CompletableSubject
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
 
+// Most of the functions in this Activity are just Rx wrappers for callbacks
 class CameraActivity : AppCompatActivity() {
     private lateinit var binding: ActivityCameraBinding
     private val viewModel: CameraActivityViewModel by viewModels()
 
-    private lateinit var cameraManager: CameraManager
+    private val cameraManager: CameraManager by lazy {
+        getSystemService(Context.CAMERA_SERVICE) as CameraManager
+    }
+
+    /** [HandlerThread] where all camera operations run */
+    private val cameraThread = HandlerThread("CameraThread").apply { start() }
+
+    /** [Handler] corresponding to [cameraThread] */
+    private val cameraHandler = Handler(cameraThread.looper)
+
     private lateinit var detector: MovementDetector
 
     private var recorder: MediaRecorder = MediaRecorder()
@@ -62,11 +72,6 @@ class CameraActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraBinding.inflate(layoutInflater)
         setContentView(binding.root)
-    }
-
-    override fun onStart() {
-        super.onStart()
-        cameraManager = getSystemService(Context.CAMERA_SERVICE) as CameraManager
 
         // Request permissions with new API
         val launcher = registerForActivityResult(
@@ -77,9 +82,19 @@ class CameraActivity : AppCompatActivity() {
                     .show()
                 finish()
             }
-            onPermissionsGranted()
         }
         launcher.launch(REQUIRED_PERMISSIONS)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        viewModelDisposable.clear()
+        val job = viewModel.viewState
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                applyViewState(it)
+            }
+        viewModelDisposable.add(job)
     }
 
     override fun onDestroy() {
@@ -111,21 +126,13 @@ class CameraActivity : AppCompatActivity() {
         }
     }
 
-    private fun onPermissionsGranted() {
-        viewModelDisposable.clear()
-        val job = viewModel.viewState
-            .observeOn(AndroidSchedulers.mainThread())
-            .subscribe {
-                applyViewState(it)
-            }
-        viewModelDisposable.add(job)
-    }
-
+    @SuppressLint("MissingPermission")
     private fun startCamera() {
         val cameraID = chooseCamera()
 
         val job = waitForPreviewSurface()
-            .andThen(openCamera(cameraID))
+            .andThen(cameraManager.openCameraRx(cameraID, cameraHandler))
+            .subscribeOn(AndroidSchedulers.from(cameraHandler.looper))
             .subscribe({ camera ->
 
                 viewModel.cameraOpened()
@@ -135,7 +142,7 @@ class CameraActivity : AppCompatActivity() {
                     MovementDetector(getSmallestResolution(state.chosenCameraChars!!))
                 val detectorSurface = detector.surface
 
-                val previewSurface = Surface(binding.preview.surfaceTexture)
+                val previewSurface = binding.preview.holder.surface
                     .also {
                         surfaces.add(it)
                     }
@@ -151,31 +158,26 @@ class CameraActivity : AppCompatActivity() {
 
     private fun waitForPreviewSurface(): Completable {
         val result = CompletableSubject.create()
-        if (binding.preview.isAvailable) {
+        if (!binding.preview.holder.isCreating) {
             result.onComplete()
         } else {
-            binding.preview.surfaceTextureListener =
-                object : TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(
-                        surface: SurfaceTexture?,
-                        width: Int,
-                        height: Int
-                    ) {
+            binding.preview.holder.addCallback(
+                object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: SurfaceHolder?) {
                         result.onComplete()
                     }
 
-                    override fun onSurfaceTextureSizeChanged(
-                        surface: SurfaceTexture?,
+                    override fun surfaceChanged(
+                        holder: SurfaceHolder?,
+                        format: Int,
                         width: Int,
                         height: Int
                     ) {
                     }
 
-                    override fun onSurfaceTextureDestroyed(surface: SurfaceTexture?): Boolean =
-                        true
-
-                    override fun onSurfaceTextureUpdated(surface: SurfaceTexture?) {}
+                    override fun surfaceDestroyed(holder: SurfaceHolder?) {}
                 }
+            )
         }
         return result
     }
@@ -203,42 +205,6 @@ class CameraActivity : AppCompatActivity() {
         state = state.copy(curPath = curName)
     }
 
-    private fun openCamera(cameraID: String): Observable<CameraDevice> {
-        Log.d(TAG, "openCamera")
-        val result = BehaviorSubject.create<CameraDevice>()
-        try {
-            cameraManager.openCamera(cameraID, object : CameraDevice.StateCallback() {
-                override fun onOpened(camera: CameraDevice) {
-                    result.onNext(camera)
-                }
-
-                override fun onDisconnected(camera: CameraDevice) {
-                    result.onError(Exception("Opening failed"))
-                }
-
-                override fun onError(camera: CameraDevice, error: Int) {
-                    camera.close()
-                    result.onError(
-                        when (error) {
-                            ERROR_CAMERA_IN_USE -> Throwable("ERROR_CAMERA_IN_USE")
-                            ERROR_MAX_CAMERAS_IN_USE -> Throwable("ERROR_MAX_CAMERAS_IN_USE")
-                            ERROR_CAMERA_DISABLED -> Throwable("ERROR_CAMERA_DISABLED")
-                            ERROR_CAMERA_DEVICE -> Throwable("ERROR_CAMERA_DEVICE")
-                            ERROR_CAMERA_SERVICE -> Throwable("ERROR_CAMERA_SERVICE")
-                            else -> Throwable("Some other error, code $error")
-                        }
-                    )
-                }
-            }, null)
-        } catch (ex: SecurityException) {
-            // This try...catch was added because of Android Studio warning
-            Log.wtf(TAG, "This should never happen", ex)
-        } catch (ex: Exception) {
-            viewModel.cameraError()
-        }
-        return result
-    }
-
     // Start writing to surfaces
     private fun startCapture(
         camera: CameraDevice,
@@ -260,12 +226,12 @@ class CameraActivity : AppCompatActivity() {
             listOf(previewSurface, detectorSurface, recorderSurface),
             object : CameraCaptureSession.StateCallback() {
                 override fun onConfigured(session: CameraCaptureSession) {
-                    session.setRepeatingRequest(previewRequest, null, null)
+                    session.setRepeatingRequest(previewRequest, null, cameraHandler)
                 }
 
                 override fun onConfigureFailed(session: CameraCaptureSession) {}
             },
-            null
+            cameraHandler
         )
     }
 
@@ -342,21 +308,6 @@ class CameraActivity : AppCompatActivity() {
         val chars = cameraManager.getCameraCharacteristics(cameras[0])
         state = state.copy(chosenCameraChars = chars)
         return cameras[0]
-    }
-
-    private fun getSmallestResolution(characteristics: CameraCharacteristics): Size {
-        val confMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-        val sizes = confMap!!.getOutputSizes(ImageFormat.JPEG)
-        // Usually the cameras keep aspect ratio, so I can compare just heights
-        var minH = -1
-        var index = 0
-        for ((idx, value) in sizes.withIndex()) {
-            if (minH > value.height || minH == -1) {
-                index = idx
-                minH = value.height
-            }
-        }
-        return sizes[index]
     }
 
     private data class InternalState(

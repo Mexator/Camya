@@ -5,11 +5,12 @@ import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.media.Image
 import android.media.ImageReader
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Log
 import android.util.Size
 import android.view.Surface
 import androidx.core.graphics.scale
-import io.reactivex.Completable
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
@@ -32,14 +33,21 @@ import kotlin.math.abs
 class MovementDetector(inputSize: Size) {
     companion object {
         private const val TAG = "MovementDetector"
+
         /** Threshold in percents to detect move **/
         private const val THRESHOLD = 10
+
         /** Image from camera is downscaled to SCALE_SIZE x SCALE_SIZE to compute pixel difference **/
         private const val SCALE_SIZE = 32
     }
 
     val surface: Surface
     val isDetected: Observable<Boolean>
+
+    /** [HandlerThread] where all buffer reading operations run */
+    private val imageReaderThread = HandlerThread("imageReaderThread").apply { start() }
+    /** [Handler] corresponding to [imageReaderThread] */
+    private val imageReaderHandler = Handler(imageReaderThread.looper)
 
     private var prevImage: Bitmap? = null
         set(value) {
@@ -57,34 +65,29 @@ class MovementDetector(inputSize: Size) {
         )
 
     private val imagePostingSubject: BehaviorSubject<Bitmap> = BehaviorSubject.create()
-    private val listener = ImageReader.OnImageAvailableListener {
+    private val listener = ImageReader.OnImageAvailableListener { reader ->
         // The plan is following: acquire image, put it to the subject, and check subject
         // periodically with Observable.sample()
-        Completable.fromRunnable {
-            imageReader.acquireLatestImage()?.let { image ->
-                val planes: Array<Image.Plane> = image.planes
-                val buffer: ByteBuffer = planes[0].buffer
-                val data = ByteArray(buffer.capacity())
-                buffer.get(data)
-                image.close()
+        reader.acquireLatestImage()?.let { image ->
+            val planes: Array<Image.Plane> = image.planes
+            val buffer: ByteBuffer = planes[0].buffer
+            val data = ByteArray(buffer.capacity())
+            buffer.get(data)
+            image.close()
 
-                var bitmap: Bitmap = BitmapFactory
-                    .decodeByteArray(data, 0, data.size)
-                bitmap = bitmap.scale(SCALE_SIZE, SCALE_SIZE)
+            var bitmap: Bitmap = BitmapFactory
+                .decodeByteArray(data, 0, data.size)
+            bitmap = bitmap.scale(SCALE_SIZE, SCALE_SIZE)
 
-                imagePostingSubject.onNext(bitmap)
-            }
+            imagePostingSubject.onNext(bitmap)
         }
-            .subscribeOn(Schedulers.computation())
-            .observeOn(Schedulers.computation())
-            .subscribe()
     }
 
     private val compositeDisposable = CompositeDisposable()
 
     init {
         surface = imageReader.surface
-        imageReader.setOnImageAvailableListener(listener, null)
+        imageReader.setOnImageAvailableListener(listener, imageReaderHandler)
         val job = imagePostingSubject
             .sample(1, TimeUnit.SECONDS)
             .observeOn(Schedulers.computation())

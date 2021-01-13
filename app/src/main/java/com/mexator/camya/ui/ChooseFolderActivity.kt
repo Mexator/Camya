@@ -9,7 +9,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ConcatAdapter
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ActivityChooseFolderBinding
-import com.mexator.camya.extensions.getTag
+import com.mexator.camya.util.extensions.getTag
 import com.mexator.camya.mvvm.choose_folder.ChooseFolderViewModel
 import com.mexator.camya.mvvm.choose_folder.ChooseFolderViewState
 import com.mexator.camya.ui.file_list.FileAdapter

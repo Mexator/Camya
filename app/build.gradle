@@ -26,8 +26,12 @@ android {
         applicationId "com.mexator.camya"
         minSdkVersion 23
         targetSdkVersion 29
-        versionCode 1
-        versionName "1.0"
+        versionCode 2
+        versionName "1.1 - Fix no recording issue on some devices"
+
+        // Put version to resources
+        def gitHash = "git rev-parse --short HEAD".execute().text.trim()
+        resValue("string", "versionName", "$versionName - $gitHash")
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 

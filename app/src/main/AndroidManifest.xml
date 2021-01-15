@@ -26,17 +26,17 @@
 
                 <data android:scheme="camya" />
             </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
         </activity>
         <activity
             android:name=".ui.ChooseFolderActivity"
             android:label="@string/title_choose_folder" />
         <activity android:name=".ui.CameraActivity"
             android:label="CameraActivity">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
         </activity>
     </application>
 

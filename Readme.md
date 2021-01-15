@@ -6,3 +6,7 @@ to be used as a stationary video camera that detects movement and start recordin
 The navigation is done with Intents, because it is simple and it does not make sense to use some 
 advanced techniques there. The same can be said about most other things - for now it is just an MVP
 prototype.
+
+For interaction with Yandex.Disk [their SDK][1] was used 
+
+[1]:https://github.com/yandex-disk/yandex-disk-restapi-java

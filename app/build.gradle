@@ -1,9 +1,10 @@
 plugins {
     id 'com.android.application'
-    id 'kotlin-android'
+    id "org.jetbrains.kotlin.android"
 }
 
 android {
+    namespace = "com.mexator.camya"
     signingConfigs {
         release {
             // Keystore with signing configs
@@ -19,8 +20,8 @@ android {
             }
         }
     }
-    compileSdkVersion 29
-    buildToolsVersion "29.0.3"
+    compileSdk = 34
+    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         applicationId "com.mexator.camya"
@@ -59,6 +60,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 

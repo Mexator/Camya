@@ -8,11 +8,12 @@ import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ItemFileBinding
+import com.google.android.material.R as MaterialR
 
 class FileViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
     companion object {
-        private const val ACTIVE_COLOR = R.attr.colorPrimary
-        private const val INACTIVE_COLOR = R.attr.colorOnPrimary
+        private val ACTIVE_COLOR = MaterialR.attr.colorPrimary
+        private val INACTIVE_COLOR = MaterialR.attr.colorOnPrimary
     }
 
     val binding = ItemFileBinding.bind(itemView)

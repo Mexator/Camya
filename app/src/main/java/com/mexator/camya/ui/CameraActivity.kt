@@ -163,19 +163,19 @@ class CameraActivity : AppCompatActivity() {
         } else {
             binding.preview.holder.addCallback(
                 object : SurfaceHolder.Callback {
-                    override fun surfaceCreated(holder: SurfaceHolder?) {
+                    override fun surfaceCreated(holder: SurfaceHolder) {
                         result.onComplete()
                     }
 
                     override fun surfaceChanged(
-                        holder: SurfaceHolder?,
+                        holder: SurfaceHolder,
                         format: Int,
                         width: Int,
                         height: Int
                     ) {
                     }
 
-                    override fun surfaceDestroyed(holder: SurfaceHolder?) {}
+                    override fun surfaceDestroyed(holder: SurfaceHolder) {}
                 }
             )
         }

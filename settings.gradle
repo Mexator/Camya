@@ -1,3 +1,2 @@
 include ':app'
-include ':disk-restapi-sdk'
 rootProject.name = "Camya"

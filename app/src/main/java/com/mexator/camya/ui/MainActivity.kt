@@ -4,8 +4,9 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.ViewModelProvider
+import com.bumptech.glide.Glide
 import com.mexator.camya.databinding.ActivityMainBinding
 import com.mexator.camya.util.extensions.getTag
 import com.mexator.camya.mvvm.main.MainActivityViewModel
@@ -19,18 +20,13 @@ import io.reactivex.disposables.Disposable
  */
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
-    private lateinit var viewModel: MainActivityViewModel
+    private val viewModel: MainActivityViewModel by viewModels { CamyaViewModelFactory(this) }
 
     private lateinit var viewModelSubscription: Disposable
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityMainBinding.inflate(layoutInflater)
-        viewModel = ViewModelProvider(
-            this,
-            MainActivityViewModel.Factory(applicationContext)
-        )[MainActivityViewModel::class.java]
 
         setOnClickListeners()
         // Subscribe to viewModel
@@ -72,6 +68,7 @@ class MainActivity : AppCompatActivity() {
             if (state.authenticated) {
                 flipper.displayedChild = CHILD_AUTHORIZED
                 proceedButton.isEnabled = true
+                Glide.with(avatar).load(state.user?.avatarUrl).into(avatar)
             } else {
                 flipper.displayedChild = CHILD_UNAUTHORIZED
                 proceedButton.isEnabled = false

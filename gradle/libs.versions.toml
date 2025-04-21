@@ -8,6 +8,7 @@ converterGsonVersion = "2.3.0"
 coreKtxVersion = "1.13.1"
 diskRestapiSdkVersion = "1.03"
 fragmentKtxVersion = "1.8.2"
+glideVersion = "4.9.0"
 kotlinVersion = "1.9.20"
 lifecycleExtensionsVersion = "2.2.0"
 loggingInterceptorVersion = "4.6.0"
@@ -27,6 +28,8 @@ androidx-coreKtx = { module = "androidx.core:core-ktx", version.ref = "coreKtxVe
 androidx-fragmentKtx = { module = "androidx.fragment:fragment-ktx", version.ref = "fragmentKtxVersion" }
 androidx-lifecycleExtensions = { module = "androidx.lifecycle:lifecycle-extensions", version.ref = "lifecycleExtensionsVersion" }
 androidx-recyclerview = { module = "androidx.recyclerview:recyclerview", version.ref = "recyclerviewVersion" }
+
+glide = {module = "com.github.bumptech.glide:glide", version.ref = "glideVersion"}
 
 kotlin-kotlinStdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlinVersion" }
 

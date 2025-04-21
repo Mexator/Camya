@@ -81,6 +81,7 @@ dependencies {
     implementation libs.rxjava.rxkotlin
 
     // Networking
+    implementation libs.glide
     implementation libs.retrofit
     implementation libs.retrofit.converterGson
     implementation libs.retrofit.adapterRxjava2

@@ -1,10 +1,9 @@
 package com.mexator.camya.mvvm.main
 
-import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import com.mexator.camya.data.ActualRepository
+import com.mexator.camya.data.UserRepository
 import com.mexator.camya.session.TokenStorage
 import com.mexator.camya.util.extensions.getTag
 import io.reactivex.Observable
@@ -15,6 +14,7 @@ import java.util.regex.Pattern
 
 class MainActivityViewModel(
     private val tokenStorage: TokenStorage,
+    private val userRepository: UserRepository,
 ) : ViewModel() {
     private val _viewState: BehaviorSubject<MainActivityViewState> = BehaviorSubject.create()
     val viewState: Observable<MainActivityViewState> get() = _viewState
@@ -48,8 +48,7 @@ class MainActivityViewModel(
             if (token!!.isNotBlank()) {
                 Log.d(getTag(), "Parsed token: $token")
                 tokenStorage.setToken(token)
-                repository.setDiskToken(token)
-                fetchUserInfo()
+                fetchUserInfo(token)
                 return true
             } else {
                 Log.w(getTag(), "Empty token")
@@ -64,13 +63,12 @@ class MainActivityViewModel(
     fun tryProceedWithToken() {
         val token = tokenStorage.readCachedToken()
         if (token != null) {
-            repository.setDiskToken(token)
-            fetchUserInfo()
+            fetchUserInfo(token)
         }
     }
 
-    private fun fetchUserInfo() {
-        val job = repository.getUserInfo()
+    private fun fetchUserInfo(token: String) {
+        val job = userRepository.getUser(token)
             .subscribeOn(Schedulers.io())
             .doOnSubscribe {
                 _viewState.onNext(
@@ -83,6 +81,7 @@ class MainActivityViewModel(
             }
             .subscribe(
                 { user ->
+                    repository.initDiskSdk(user, token)
                     _viewState.onNext(
                         MainActivityViewState(
                             progress = false,
@@ -104,19 +103,5 @@ class MainActivityViewModel(
                 }
             )
         compositeDisposable.add(job)
-    }
-
-    @Suppress("UNCHECKED_CAST")
-    class Factory(
-        private val applicationContext: Context
-    ) : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            return if (modelClass == MainActivityViewModel::class.java) {
-                val tokenStorage = TokenStorage(applicationContext)
-                MainActivityViewModel(tokenStorage) as T
-            } else {
-                super.create(modelClass)
-            }
-        }
     }
 }

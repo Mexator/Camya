@@ -27,21 +27,25 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
-        viewModel = ViewModelProvider(this).get(MainActivityViewModel::class.java)
+        viewModel = ViewModelProvider(
+            this,
+            MainActivityViewModel.Factory(applicationContext)
+        )[MainActivityViewModel::class.java]
 
         setOnClickListeners()
-
-        // If this activity opened as a result of intent with token, data will be not empty
-        intent?.data?.let {
-            onLogin(it)
-        }
-
         // Subscribe to viewModel
         viewModelSubscription = viewModel.viewState
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::applyState)
 
         setContentView(binding.root)
+
+        // If this activity opened as a result of intent with token, data will be not empty
+        if (intent?.data != null) {
+            onLogin(intent.data!!)
+        } else {
+            viewModel.tryProceedWithToken()
+        }
     }
 
     private fun setOnClickListeners() {
@@ -59,8 +63,6 @@ class MainActivity : AppCompatActivity() {
         viewModelSubscription.dispose()
     }
 
-    private val CHILD_LOGGED = 0
-    private val CHILD_NOT_LOGGED = 1
     private fun applyState(state: MainActivityViewState) {
         Log.d(getTag(), state.toString())
         with(binding) {
@@ -68,10 +70,10 @@ class MainActivity : AppCompatActivity() {
             textViewName.text = state.user?.name
 
             if (state.authenticated) {
-                flipper.displayedChild = CHILD_LOGGED
+                flipper.displayedChild = CHILD_AUTHORIZED
                 proceedButton.isEnabled = true
             } else {
-                flipper.displayedChild = CHILD_NOT_LOGGED
+                flipper.displayedChild = CHILD_UNAUTHORIZED
                 proceedButton.isEnabled = false
             }
         }
@@ -80,5 +82,10 @@ class MainActivity : AppCompatActivity() {
     private fun onLogin(data: Uri) {
         intent = null
         viewModel.processUri(data.toString())
+    }
+
+    companion object {
+        private const val CHILD_AUTHORIZED = 0
+        private const val CHILD_UNAUTHORIZED = 1
     }
 }

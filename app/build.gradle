@@ -26,8 +26,8 @@ android {
         applicationId "com.mexator.camya"
         minSdkVersion 23
         targetSdkVersion 34
-        versionCode 3
-        versionName "1.1.1 - Fix app icon not displayed on some devices"
+        versionCode 4
+        versionName "1.2 - Remember user between restarts"
 
         // Put version to resources
         def gitHash = "git rev-parse --short HEAD".execute().text.trim()

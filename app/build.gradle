@@ -26,8 +26,8 @@ android {
         applicationId "com.mexator.camya"
         minSdkVersion 23
         targetSdkVersion 35
-        versionCode 4
-        versionName "1.2 - Remember user between restarts"
+        versionCode 5
+        versionName "1.3 - Add edge-to-edge support"
 
         // Put version to resources
         def gitHash = "git rev-parse --short HEAD".execute().text.trim()

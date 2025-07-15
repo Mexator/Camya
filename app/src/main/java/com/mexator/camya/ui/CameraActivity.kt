@@ -17,9 +17,13 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.View
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import com.mexator.camya.R
 import com.mexator.camya.data.MovementDetector
 import com.mexator.camya.databinding.ActivityCameraBinding
@@ -27,6 +31,7 @@ import com.mexator.camya.mvvm.camera.CameraActivityViewModel
 import com.mexator.camya.mvvm.camera.CameraActivityViewState
 import com.mexator.camya.util.extensions.openCameraRx
 import com.mexator.camya.util.functions.getSmallestResolution
+import dev.androidbroadcast.vbpd.viewBinding
 import io.reactivex.Completable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -37,8 +42,8 @@ import java.util.*
 import java.util.concurrent.TimeUnit
 
 // Most of the functions in this Activity are just Rx wrappers for callbacks
-class CameraActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityCameraBinding
+class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
+    private val binding: ActivityCameraBinding by viewBinding(ActivityCameraBinding::bind)
     private val viewModel: CameraActivityViewModel by viewModels()
 
     private val cameraManager: CameraManager by lazy {
@@ -70,8 +75,7 @@ class CameraActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityCameraBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        initEdgeToEdge()
 
         // Request permissions with new API
         val launcher = registerForActivityResult(
@@ -84,6 +88,18 @@ class CameraActivity : AppCompatActivity() {
             }
         }
         launcher.launch(REQUIRED_PERMISSIONS)
+    }
+
+    private fun initEdgeToEdge() {
+        enableEdgeToEdge()
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.overlay.updatePadding(
+                bottom = systemBarsInsets.bottom,
+                top = systemBarsInsets.top
+            )
+            WindowInsetsCompat.CONSUMED
+        }
     }
 
     override fun onStart() {
@@ -114,8 +130,8 @@ class CameraActivity : AppCompatActivity() {
     private fun applyViewState(state: CameraActivityViewState) {
         Log.d(TAG, state.toString())
         with(state) {
-            binding.move.visibility = if (moveDetected) View.VISIBLE else View.INVISIBLE
-            binding.record.visibility = if (isRecording) View.VISIBLE else View.INVISIBLE
+            binding.record.visibility = if (isRecording) View.VISIBLE else View.GONE
+            binding.move.visibility = if (moveDetected) View.VISIBLE else View.GONE
             if (cameraReopenNeeded) {
                 compositeDisposable.clear()
                 recorder.reset()

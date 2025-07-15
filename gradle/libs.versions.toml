@@ -1,23 +1,24 @@
 [versions]
 
-activityKtxVersion = "1.9.1"
-agpVersion = "8.9.2"
-appcompatVersion = "1.7.0"
-constraintlayoutVersion = "2.1.4"
+activityKtxVersion = "1.10.1"
+agpVersion = "8.9.3"
+appcompatVersion = "1.7.1"
+constraintlayoutVersion = "2.2.1"
 converterGsonVersion = "2.3.0"
-coreKtxVersion = "1.13.1"
+coreKtxVersion = "1.16.0"
 diskRestapiSdkVersion = "1.03"
-fragmentKtxVersion = "1.8.2"
+fragmentKtxVersion = "1.8.8"
 glideVersion = "4.9.0"
-kotlinVersion = "1.9.20"
+kotlinVersion = "2.1.10"
 lifecycleExtensionsVersion = "2.2.0"
 loggingInterceptorVersion = "4.6.0"
 materialVersion = "1.12.0"
-recyclerviewVersion = "1.3.2"
+recyclerviewVersion = "1.4.0"
 retrofitVersion = "2.4.0"
 rxandroidVersion = "2.0.1"
 rxjavaVersion = "2.2.19"
 rxkotlinVersion = "2.4.0"
+viewBindingPropertyDelegateVersion = "2.0.4"
 
 [libraries]
 
@@ -49,5 +50,7 @@ kotlinPlugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.r
 rxjava = { module = "io.reactivex.rxjava2:rxjava", version.ref = "rxjavaVersion" }
 rxjava-rxandroid = { module = "io.reactivex.rxjava2:rxandroid", version.ref = "rxandroidVersion" }
 rxjava-rxkotlin = { module = "io.reactivex.rxjava2:rxkotlin", version.ref = "rxkotlinVersion" }
+
+ui-viewbindingPropertyDelegate = { module = "dev.androidbroadcast.vbpd:vbpd", version.ref = "viewBindingPropertyDelegateVersion" }
 
 [plugins]

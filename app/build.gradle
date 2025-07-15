@@ -20,12 +20,12 @@ android {
             }
         }
     }
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId "com.mexator.camya"
         minSdkVersion 23
-        targetSdkVersion 34
+        targetSdkVersion 35
         versionCode 4
         versionName "1.2 - Remember user between restarts"
 
@@ -49,11 +49,11 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = "17"
     }
     buildFeatures {
         viewBinding true
@@ -88,4 +88,6 @@ dependencies {
     implementation libs.okhttp3.loggingInterceptor
 
     implementation libs.yandex.diskRestapiSdk
+
+    implementation libs.ui.viewbindingPropertyDelegate
 }

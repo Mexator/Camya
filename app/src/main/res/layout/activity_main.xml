@@ -6,6 +6,23 @@
     android:layout_height="match_parent"
     tools:context=".ui.MainActivity">
 
+    <FrameLayout
+        android:id="@+id/statusBarBg"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorPrimaryVariant"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <Toolbar
+            android:id="@+id/toolbar"
+            style="@style/Widget.MaterialComponents.Toolbar.Primary"
+            android:layout_width="match_parent"
+            android:titleTextColor="?attr/colorOnPrimary"
+            android:layout_height="wrap_content"
+            android:title="@string/app_name" />
+    </FrameLayout>
+
+
     <ViewFlipper
         android:id="@+id/flipper"
         android:layout_width="wrap_content"
@@ -14,7 +31,7 @@
         app:layout_constraintBottom_toTopOf="@id/loginButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+        app:layout_constraintTop_toBottomOf="@+id/statusBarBg">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -65,17 +82,17 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/statusBarBg" />
 
     <Button
         android:id="@+id/proceedButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
 
-        app:layout_constraintTop_toBottomOf="@id/loginButton"
-        app:layout_constraintStart_toStartOf="parent"
+        android:text="@string/title_button_proceed"
         app:layout_constraintEnd_toEndOf="parent"
-        android:text="@string/title_button_proceed" />
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/loginButton" />
 
     <TextView
         android:layout_width="wrap_content"
@@ -84,9 +101,8 @@
         android:layout_marginVertical="4dp"
         android:text="@string/versionName"
 
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"
-        />
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

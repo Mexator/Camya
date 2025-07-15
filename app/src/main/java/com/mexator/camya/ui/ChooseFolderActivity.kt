@@ -1,10 +1,18 @@
 package com.mexator.camya.ui
 
 import android.content.Intent
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ConcatAdapter
 import com.mexator.camya.R
@@ -14,12 +22,13 @@ import com.mexator.camya.mvvm.choose_folder.ChooseFolderViewModel
 import com.mexator.camya.mvvm.choose_folder.ChooseFolderViewState
 import com.mexator.camya.ui.file_list.FileAdapter
 import com.mexator.camya.ui.list.StateAdapter
+import dev.androidbroadcast.vbpd.viewBinding
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.Disposable
 
-class ChooseFolderActivity : AppCompatActivity() {
-    private lateinit var binding: ActivityChooseFolderBinding
-    private lateinit var viewModel: ChooseFolderViewModel
+class ChooseFolderActivity : AppCompatActivity(R.layout.activity_choose_folder) {
+    private val binding: ActivityChooseFolderBinding by viewBinding(ActivityChooseFolderBinding::bind)
+    private val viewModel: ChooseFolderViewModel by viewModels()
 
     private lateinit var viewModelSubscription: Disposable
 
@@ -29,8 +38,7 @@ class ChooseFolderActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityChooseFolderBinding.inflate(layoutInflater)
-        setContentView(binding.root)
+        initEdgeToEdge()
 
         binding.foldersList.adapter = ConcatAdapter(adapter, stateAdapter)
         binding.buttonChooseFolder.setOnClickListener {
@@ -44,21 +52,31 @@ class ChooseFolderActivity : AppCompatActivity() {
             }
         }
 
-        viewModel = ViewModelProvider(this).get(ChooseFolderViewModel::class.java)
         viewModelSubscription = viewModel.viewState
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::applyState)
         viewModel.getFolderList("/")
     }
 
+    private fun initEdgeToEdge() {
+        enableEdgeToEdge(SystemBarStyle.dark(scrim = Color.TRANSPARENT))
+        WindowCompat.getInsetsController(window,window.decorView).isAppearanceLightStatusBars = false
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val systemBarsInsets = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+            binding.statusBarBg.updatePadding(top = systemBarsInsets.top)
+            binding.floatingButtons.updatePadding(
+                bottom = systemBarsInsets.bottom,
+            )
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
     private fun applyState(mState: ChooseFolderViewState) {
         state = mState
         Log.d(getTag(), mState.toString())
-        with(binding) {
-            if (mState.loading) stateAdapter.state = StateAdapter.Loading
-            else stateAdapter.state = null
-            adapter.submitList(mState.dirList)
-            adapter.notifyDataSetChanged()
-        }
+        if (mState.loading) stateAdapter.state = StateAdapter.Loading
+        else stateAdapter.state = null
+        adapter.submitList(mState.dirList)
+        adapter.notifyDataSetChanged()
     }
 }

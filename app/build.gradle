@@ -1,6 +1,7 @@
 plugins {
-    id 'com.android.application'
-    id "org.jetbrains.kotlin.android"
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.detekt)
 }
 
 android {
@@ -47,6 +48,10 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        debug {
+            applicationIdSuffix ".debug"
+            resValue "string", "app_name", "Camya.debug"
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -90,4 +95,8 @@ dependencies {
     implementation libs.yandex.diskRestapiSdk
 
     implementation libs.ui.viewbindingPropertyDelegate
+}
+
+detekt {
+    config.setFrom(files("$rootDir/detekt.yml"))
 }

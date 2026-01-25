@@ -6,6 +6,7 @@ appcompatVersion = "1.7.1"
 constraintlayoutVersion = "2.2.1"
 converterGsonVersion = "2.3.0"
 coreKtxVersion = "1.16.0"
+detektVersion = "1.23.6"
 diskRestapiSdkVersion = "1.03"
 fragmentKtxVersion = "1.8.8"
 glideVersion = "4.9.0"
@@ -54,3 +55,6 @@ rxjava-rxkotlin = { module = "io.reactivex.rxjava2:rxkotlin", version.ref = "rxk
 ui-viewbindingPropertyDelegate = { module = "dev.androidbroadcast.vbpd:vbpd", version.ref = "viewBindingPropertyDelegateVersion" }
 
 [plugins]
+android-application = { id = "com.android.application", version.ref = "agpVersion" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlinVersion" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detektVersion" }

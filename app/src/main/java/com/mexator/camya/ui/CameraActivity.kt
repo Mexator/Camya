@@ -44,7 +44,7 @@ import java.util.concurrent.TimeUnit
 // Most of the functions in this Activity are just Rx wrappers for callbacks
 class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
     private val binding: ActivityCameraBinding by viewBinding(ActivityCameraBinding::bind)
-    private val viewModel: CameraActivityViewModel by viewModels()
+    private val viewModel: CameraActivityViewModel by viewModels { CamyaViewModelFactory(this) }
 
     private val cameraManager: CameraManager by lazy {
         getSystemService(Context.CAMERA_SERVICE) as CameraManager

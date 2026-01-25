@@ -1,14 +1,11 @@
 package com.mexator.camya.mvvm.camera
 
 import androidx.lifecycle.ViewModel
-import com.mexator.camya.data.ActualRepository
+import com.mexator.camya.data.YandexDiskRepository
 import io.reactivex.Observable
 import io.reactivex.subjects.BehaviorSubject
 
-class CameraActivityViewModel : ViewModel() {
-    companion object {
-        const val TAG = "CameraActivityViewModel"
-    }
+class CameraActivityViewModel(private val repository: YandexDiskRepository) : ViewModel() {
 
     private val _viewState: BehaviorSubject<CameraActivityViewState> = BehaviorSubject.create()
     val viewState: Observable<CameraActivityViewState> get() = _viewState
@@ -18,9 +15,6 @@ class CameraActivityViewModel : ViewModel() {
             CameraActivityViewState()
         )
     }
-
-    private val repository = ActualRepository
-
 
     fun recordStarted() {
         with(_viewState) {

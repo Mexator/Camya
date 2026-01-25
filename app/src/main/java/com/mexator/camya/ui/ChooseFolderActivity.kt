@@ -13,7 +13,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.ConcatAdapter
 import com.mexator.camya.R
 import com.mexator.camya.databinding.ActivityChooseFolderBinding
@@ -28,7 +27,7 @@ import io.reactivex.disposables.Disposable
 
 class ChooseFolderActivity : AppCompatActivity(R.layout.activity_choose_folder) {
     private val binding: ActivityChooseFolderBinding by viewBinding(ActivityChooseFolderBinding::bind)
-    private val viewModel: ChooseFolderViewModel by viewModels()
+    private val viewModel: ChooseFolderViewModel by viewModels { CamyaViewModelFactory(this) }
 
     private lateinit var viewModelSubscription: Disposable
 
@@ -52,10 +51,19 @@ class ChooseFolderActivity : AppCompatActivity(R.layout.activity_choose_folder) 
             }
         }
 
+        viewModel.getFolderList("/")
+    }
+
+    override fun onStart() {
+        super.onStart()
         viewModelSubscription = viewModel.viewState
             .observeOn(AndroidSchedulers.mainThread())
             .subscribe(this::applyState)
-        viewModel.getFolderList("/")
+    }
+
+    override fun onStop() {
+        super.onStop()
+        viewModelSubscription.dispose()
     }
 
     private fun initEdgeToEdge() {

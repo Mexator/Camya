@@ -2,19 +2,18 @@ package com.mexator.camya.mvvm.choose_folder
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import com.mexator.camya.data.ActualRepository
+import com.mexator.camya.data.YandexDiskRepository
 import com.mexator.camya.util.extensions.getTag
+import com.yandex.disk.rest.exceptions.http.ConflictException
 import com.yandex.disk.rest.json.Resource
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import io.reactivex.subjects.BehaviorSubject
 
-class ChooseFolderViewModel : ViewModel() {
+class ChooseFolderViewModel(private val repository: YandexDiskRepository) : ViewModel() {
     private val _viewState: BehaviorSubject<ChooseFolderViewState> = BehaviorSubject.create()
     val viewState: Observable<ChooseFolderViewState> get() = _viewState
-
-    private val repository = ActualRepository
 
     private val compositeDisposable = CompositeDisposable()
 
@@ -51,8 +50,26 @@ class ChooseFolderViewModel : ViewModel() {
     }
 
     fun folderChosen(path: String) {
-        Log.d(getTag(),"Chosen: $path")
-        repository.createFolder("$path/Camya_records")
-        repository.diskPath = "$path/Camya_records"
+        Log.d(getTag(), "Chosen: $path")
+        val job = repository.createFolder("$path/Camya_records")
+            .onErrorComplete {
+                // dir already exists - it's okay to write there
+                it is ConflictException
+            }.subscribe(
+                /* onComplete = */ {
+                    repository.diskPath = "$path/Camya_records"
+                },
+                /* onError = */ { error ->
+                    when (error) {
+                        is YandexDiskRepository.UnauthorizedException -> Unit // todo add navigation command
+                    }
+                }
+            )
+        compositeDisposable.add(job)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        compositeDisposable.clear()
     }
 }

@@ -2,7 +2,7 @@ package com.mexator.camya.data
 
 import android.util.Log
 import com.mexator.camya.BuildConfig
-import com.mexator.camya.data.model.User
+import com.mexator.camya.session.CredentialsStorage
 import com.yandex.disk.rest.Credentials
 import com.yandex.disk.rest.ResourcesArgs
 import com.yandex.disk.rest.RestClient
@@ -13,11 +13,9 @@ import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import java.io.File
 
-object ActualRepository {
-    private const val TAG = "ActualRepository"
-
-    // Dependencies
-    private var diskClient: RestClient? = null
+class YandexDiskRepository(
+    private val credentialsStorage: CredentialsStorage
+) {
 
     var diskPath: String = ""
 
@@ -27,40 +25,32 @@ object ActualRepository {
         "https://oauth.yandex.ru/authorize?response_type=token&client_id=${BuildConfig.ID}" +
                 "&force_confirm=${if (BuildConfig.DEBUG) "no" else "yes"}"
 
-    fun initDiskSdk(user: User, token: String) {
-        diskClient = RestClient(Credentials(user.username, token))
-    }
-
     fun getFoldersList(path: String): Single<List<Resource>> =
-        Single.defer {
-            Single.just(
-                diskClient!!.getResources(
-                    ResourcesArgs.Builder()
-                        .setPath(path)
-                        .setFields("_embedded")
-                        .build()
-                )
+        Single.fromCallable {
+            requireDiskClient().getResources(
+                ResourcesArgs.Builder()
+                    .setPath(path)
+                    .setFields("_embedded")
+                    .build()
             )
         }
             .map { resource -> resource.resourceList.items }
             .map { list -> list.filter { item -> item.isDir } }
 
-    fun createFolder(path: String) {
-        val job = Completable.fromRunnable { diskClient!!.makeFolder(path) }
+    fun createFolder(path: String): Completable {
+        return Completable.fromRunnable { requireDiskClient().makeFolder(path) }
             .subscribeOn(Schedulers.io())
-            .subscribe({}) { error -> Log.e(TAG, "Error creating directory", error) }
+            .doOnError { error -> Log.e(TAG, "Error creating directory", error) }
     }
 
     fun uploadFile(path: String) {
         val name = path.split("/").last()
-        val job = Single.defer {
+        val job = Single.fromCallable {
             Log.d(TAG, "Upload started")
-            Single.just(
-                diskClient!!.getUploadLink("$diskPath/$name", false)
-            )
+            requireDiskClient().getUploadLink("$diskPath/$name", false)
         }.flatMapCompletable {
             Completable.fromRunnable {
-                diskClient!!.uploadFile(it, true, File(path), null)
+                requireDiskClient().uploadFile(it, true, File(path), null)
             }
         }
             .subscribeOn(Schedulers.io())
@@ -70,5 +60,22 @@ object ActualRepository {
             }
 
         compositeDisposable.add(job)
+    }
+
+    private fun requireDiskClient(): RestClient {
+        return getDiskClient() ?: throw UnauthorizedException()
+    }
+
+    private fun getDiskClient(): RestClient? {
+        val credentials = credentialsStorage.getCachedCredentials()
+        return credentials?.let {
+            RestClient(Credentials(credentials.username, credentials.token))
+        }
+    }
+
+    class UnauthorizedException : Exception()
+
+    private companion object {
+        const val TAG = "YandexDiskRepository"
     }
 }

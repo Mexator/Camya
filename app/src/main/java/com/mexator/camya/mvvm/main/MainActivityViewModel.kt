@@ -2,9 +2,9 @@ package com.mexator.camya.mvvm.main
 
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import com.mexator.camya.data.ActualRepository
 import com.mexator.camya.data.UserRepository
-import com.mexator.camya.session.TokenStorage
+import com.mexator.camya.data.YandexDiskRepository
+import com.mexator.camya.session.CredentialsStorage
 import com.mexator.camya.util.extensions.getTag
 import io.reactivex.Observable
 import io.reactivex.disposables.CompositeDisposable
@@ -13,8 +13,9 @@ import io.reactivex.subjects.BehaviorSubject
 import java.util.regex.Pattern
 
 class MainActivityViewModel(
-    private val tokenStorage: TokenStorage,
+    private val credentialsStorage: CredentialsStorage,
     private val userRepository: UserRepository,
+    private val yandexDiskRepository: YandexDiskRepository
 ) : ViewModel() {
     private val _viewState: BehaviorSubject<MainActivityViewState> = BehaviorSubject.create()
     val viewState: Observable<MainActivityViewState> get() = _viewState
@@ -29,13 +30,12 @@ class MainActivityViewModel(
         )
     }
 
-    private val repository = ActualRepository
     private val compositeDisposable = CompositeDisposable()
 
-    fun getAuthURL(): String = repository.diskAuthURL
+    fun getAuthURL(): String = yandexDiskRepository.diskAuthURL
 
     /**
-     * Tries to parse [uri] and det Yandex Disk Access token,
+     * Tries to parse [uri] and get Yandex Disk Access token,
      */
     fun processUri(uri: String): Boolean {
 
@@ -43,16 +43,11 @@ class MainActivityViewModel(
             .compile("access_token=(.*?)(&|$)")
             .matcher(uri)
 
-        if (matcher.find()) {
-            val token = matcher.group(1)
-            if (token!!.isNotBlank()) {
-                Log.d(getTag(), "Parsed token: $token")
-                tokenStorage.setToken(token)
-                fetchUserInfo(token)
-                return true
-            } else {
-                Log.w(getTag(), "Empty token")
-            }
+        val token = if(matcher.find()) matcher.group(1) else null
+        if (!token.isNullOrBlank()) {
+            Log.d(getTag(), "Parsed token: $token")
+            fetchUserInfo(token)
+            return true
         } else {
             Log.w(getTag(), "Token not found in return url")
         }
@@ -61,9 +56,9 @@ class MainActivityViewModel(
     }
 
     fun tryProceedWithToken() {
-        val token = tokenStorage.readCachedToken()
-        if (token != null) {
-            fetchUserInfo(token)
+        val credentials = credentialsStorage.getCachedCredentials()
+        if (credentials != null) {
+            fetchUserInfo(credentials.token)
         }
     }
 
@@ -81,7 +76,7 @@ class MainActivityViewModel(
             }
             .subscribe(
                 { user ->
-                    repository.initDiskSdk(user, token)
+                    credentialsStorage.setCredentials(user.username, token)
                     _viewState.onNext(
                         MainActivityViewState(
                             progress = false,
@@ -92,7 +87,7 @@ class MainActivityViewModel(
                 },
                 { error ->
                     Log.e(getTag(), "Error fetching user info", error)
-                    tokenStorage.clearToken()
+                    credentialsStorage.clearToken()
                     _viewState.onNext(
                         MainActivityViewState(
                             progress = false,

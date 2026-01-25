@@ -2,8 +2,9 @@ package com.mexator.camya.di
 
 import android.content.Context
 import com.mexator.camya.data.UserRepository
+import com.mexator.camya.data.YandexDiskRepository
 import com.mexator.camya.data.userinfo.api.UserAPI
-import com.mexator.camya.session.TokenStorage
+import com.mexator.camya.session.CredentialsStorage
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
@@ -15,14 +16,15 @@ object AppComponentHolder {
     private var cachedComponent: AppComponent? = null
 
     fun get(applicationContext: Context): AppComponent {
-        return cachedComponent ?: AppModule(applicationContext)
+        return cachedComponent ?: AppModule(applicationContext).also { cachedComponent = it }
     }
 }
 
 interface AppComponent {
 
     val userRepository: UserRepository
-    val tokenStorage: TokenStorage
+    val credentialsStorage: CredentialsStorage
+    val yandexDiskRepository: YandexDiskRepository
 }
 
 fun AppModule(applicationContext: Context): AppComponent {
@@ -41,6 +43,7 @@ fun AppModule(applicationContext: Context): AppComponent {
 
     return object : AppComponent {
         override val userRepository: UserRepository = UserRepository(userApi)
-        override val tokenStorage: TokenStorage = TokenStorage(applicationContext)
+        override val credentialsStorage: CredentialsStorage = CredentialsStorage(applicationContext)
+        override val yandexDiskRepository: YandexDiskRepository = YandexDiskRepository(credentialsStorage)
     }
 }

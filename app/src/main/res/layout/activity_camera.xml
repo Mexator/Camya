@@ -6,7 +6,7 @@
     android:layout_height="match_parent"
     tools:context=".ui.CameraActivity">
 
-    <SurfaceView
+    <com.mexator.camya.ui.view.AspectRatioSurfaceView
         android:id="@+id/preview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

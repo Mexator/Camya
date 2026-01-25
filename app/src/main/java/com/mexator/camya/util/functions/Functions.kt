@@ -1,12 +1,12 @@
 package com.mexator.camya.util.functions
 
-import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCharacteristics
 import android.util.Size
+import android.view.SurfaceHolder
 
 fun getSmallestResolution(characteristics: CameraCharacteristics): Size {
     val confMap = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP)
-    val sizes = confMap!!.getOutputSizes(ImageFormat.JPEG)
+    val sizes = confMap!!.getOutputSizes(SurfaceHolder::class.java)
     // Usually the cameras keep aspect ratio, so I can compare just heights
     var minH = -1
     var index = 0

@@ -56,7 +56,7 @@ class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
     /** [Handler] corresponding to [cameraThread] */
     private val cameraHandler = Handler(cameraThread.looper)
 
-    private lateinit var detector: MovementDetector
+    private var detector: MovementDetector? = null
 
     private var recorder: MediaRecorder = MediaRecorder()
     private val recorderSurface = MediaCodec.createPersistentInputSurface()
@@ -118,7 +118,7 @@ class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
         super.onDestroy()
         viewModelDisposable.dispose()
         compositeDisposable.dispose()
-        detector.release()
+        detector?.release()
         recorder.release()
         surfaces.onEach { it.release() }
         state.curPath?.let {
@@ -154,9 +154,16 @@ class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
                 viewModel.cameraOpened()
                 prepareRecorder()
 
-                detector =
-                    MovementDetector(getSmallestResolution(state.chosenCameraChars!!))
-                val detectorSurface = detector.surface
+                val cameraResolution = getSmallestResolution(state.chosenCameraChars!!)
+                binding.preview.post {
+                    binding.preview.setPreviewSize(
+                        cameraResolution.width,
+                        cameraResolution.height,
+                        state.chosenCameraChars!!
+                    )
+                }
+                detector = MovementDetector(cameraResolution)
+                val detectorSurface = requireNotNull(detector).surface
 
                 val previewSurface = binding.preview.holder.surface
                     .also {
@@ -252,9 +259,9 @@ class CameraActivity : AppCompatActivity(R.layout.activity_camera) {
     }
 
     // Start recorder when detector detects movement and stop after timeout. Cancel timeout,
-    // if move is detected
+// if move is detected
     private fun startWatching() {
-        val job = detector.isDetected
+        val job = requireNotNull(detector).isDetected
             .distinctUntilChanged()
             .switchMapCompletable {
                 Log.d(TAG, "Detector:$it")

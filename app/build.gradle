@@ -26,8 +26,8 @@ android {
         applicationId "com.mexator.camya"
         minSdkVersion 23
         targetSdkVersion 36
-        versionCode 6
-        versionName "1.4 - Fix preview aspect ratio"
+        versionCode 7
+        versionName "1.4.1 - Now with predictive back"
 
         // Put version to resources
         def gitHash = "git rev-parse --short HEAD".execute().text.trim()
